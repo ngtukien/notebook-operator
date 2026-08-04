@@ -1,0 +1,14 @@
+---
+- name: Verify
+  hosts: all
+  become: true
+  tasks:
+    - name: Verify NVIDIA Container Toolkit is installed
+      ansible.builtin.package:
+        name: nvidia-container-toolkit
+        state: present
+
+    - name: Verify NVIDIA Runtime is installed
+      ansible.builtin.package:
+        name: nvidia-container-runtime
+        state: present

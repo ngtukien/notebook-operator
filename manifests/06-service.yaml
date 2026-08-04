@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: gpu-container-svc
+  namespace: gpu-lab
+  labels:
+    app: gpu-container
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8888
+      targetPort: 8888
+      name: jupyter
+  selector:
+    app: gpu-container

@@ -1,0 +1,21 @@
+- name: Ensure curl is installed
+  apt:
+    name: curl
+    state: present
+    update_cache: yes
+
+- name: Set Master IP address
+  set_fact:
+    master_ip: "{{ hostvars[groups['master'][0]]['ansible_host'] | default(hostvars[groups['master'][0]]['ansible_default_ipv4']['address'] | default('127.0.0.1')) }}"
+
+- name: Install K3s Agent (v1.36.2+k3s1)
+  shell: |
+    curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION=v1.36.2+k3s1 K3S_URL=https://{{ master_ip }}:6443 K3S_TOKEN={{ hostvars[groups['master'][0]]['k3s_token'].stdout }} sh -
+  args:
+    creates: /usr/local/bin/k3s-agent
+    
+- name: Khởi động K3s Agent
+  systemd:
+    name: k3s-agent
+    state: started
+    enabled: yes

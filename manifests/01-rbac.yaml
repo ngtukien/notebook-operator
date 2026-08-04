@@ -1,0 +1,32 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: gpu-worker-sa
+  namespace: gpu-lab
+# Tắt tự động mount token (ngay tại mức SA) để an toàn tuyệt đối
+automountServiceAccountToken: false
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: gpu-worker-role
+  namespace: gpu-lab
+# KHÔNG cấp bất kỳ quyền gì cho Role này (Nguyên tắc quyền tối thiểu - Zero Trust)
+# Nếu sau này ML app cần đọc Secret/ConfigMap thì mới thêm quyền vào đây
+rules: [] 
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: gpu-worker-rolebinding
+  namespace: gpu-lab
+subjects:
+  - kind: ServiceAccount
+    name: gpu-worker-sa
+    namespace: gpu-lab
+roleRef:
+  kind: Role
+  name: gpu-worker-role
+  apiGroup: rbac.authorization.k8s.io

@@ -1,0 +1,14 @@
+# Không dùng hostPath thủ công nữa để tránh lổ hổng bảo mật.
+# Sử dụng 'local-path' (CSI Provisioner mặc định của K3s) để tự động cấp phát ổ cứng an toàn.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: gpu-lab-pvc
+  namespace: gpu-lab
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 20Gi

@@ -1,0 +1,9 @@
+# Bỏ qua lỗi bắt buộc dùng cổng > 1024 vì chúng ta đang chủ động mở cổng 22 (SSH)
+KSV-0117
+
+# Bỏ qua cảnh báo về readOnlyRootFilesystem vì thư viện ML cần ghi file tạm
+KSV-0014
+
+# Bỏ qua cảnh báo runAsUser > 10000 vì user 'candidate' đang có UID là 1000
+KSV-0020
+KSV-0021

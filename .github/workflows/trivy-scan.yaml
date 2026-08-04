@@ -1,0 +1,41 @@
+name: DevSecOps Pipeline (Trivy)
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+
+jobs:
+  trivy-security-scan:
+    name: Trivy Security Scanning
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Bước 1: Quét lỗi cấu hình (Misconfigurations) trong Kubernetes Manifests
+      - name: Quét cấu hình Manifest (IaC)
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'config'
+          scan-ref: 'manifests/'
+          format: 'table'
+          exit-code: '1'      # Cảnh báo: Sẽ đánh trượt Pipeline nếu phát hiện lỗi ở các file yaml
+          severity: 'CRITICAL,HIGH'
+
+      # Bước 2: Build Docker Image (Ví dụ với bản HuggingFace)
+      - name: Build Docker Image (HuggingFace)
+        run: |
+          docker build -t ghcr.io/nguyentukien/gpu-container:huggingface -f images/Dockerfile.container-huggingface images/
+
+      # Bước 3: Quét lỗ hổng phần mềm (CVEs) trong thư viện của Docker Image
+      - name: Quét lỗ hổng Image (CVEs)
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'image'
+          image-ref: 'ghcr.io/nguyentukien/gpu-container:huggingface'
+          format: 'table'
+          exit-code: '1'      # Bắt buộc sập Pipeline (Failed) nếu phát hiện lỗi CRITICAL/HIGH trong thư viện
+          severity: 'CRITICAL,HIGH'

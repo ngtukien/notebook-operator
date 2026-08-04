@@ -1,0 +1,66 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gpu-container
+  namespace: gpu-lab
+  labels:
+    app: gpu-container
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gpu-container
+  template:
+    metadata:
+      labels:
+        app: gpu-container
+    spec:
+      serviceAccountName: gpu-worker-sa
+      runtimeClassName: nvidia
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000       # Chạy bằng UID 1000 (user candidate)
+        runAsGroup: 1000
+        fsGroup: 1000         # Quyền sở hữu thư mục mount
+        seccompProfile:
+          type: RuntimeDefault
+          
+      containers:
+        - name: ai-env
+          # Sử dụng image mới build có chứa thư viện AI (ví dụ: pytorch)
+          image: ghcr.io/nguyentukien/gpu-container:pytorch
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8888
+              name: jupyter
+          command: ["jupyter", "lab", "--ip=0.0.0.0", "--port=8888", "--no-browser", "--ServerApp.token=''", "--ServerApp.password=''", "--notebook-dir=/workspace"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            # Chú ý: readOnlyRootFilesystem=true có thể gây lỗi cho Jupyter.
+            # Nếu bật true, bạn phải mount emptyDir cho các thư mục /run, /var/log...
+            readOnlyRootFilesystem: false 
+            capabilities:
+              drop:
+                - ALL                    
+          resources:
+            limits:
+              cpu: "2"
+              memory: "4Gi"
+              nvidia.com/gpu: "1"
+              nvidia.com/gpumem: "3072"
+              nvidia.com/gpucores: "30"
+              
+          volumeMounts:
+            - name: workspace
+              mountPath: /workspace  # Dữ liệu được lưu trữ cứng tại host (PVC)
+            - name: tmp
+              mountPath: /tmp        # Bắt buộc phải có để các app chạy tạm (Jupyter/SSH)
+              
+      volumes:
+        - name: workspace
+          persistentVolumeClaim:
+            claimName: gpu-lab-pvc
+        - name: tmp
+          emptyDir: 
+            sizeLimit: 10Gi

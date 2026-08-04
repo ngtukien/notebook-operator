@@ -1,0 +1,27 @@
+- name: Ensure curl and gnupg2 are installed
+  apt:
+    name:
+      - curl
+      - gnupg2
+    state: present
+    update_cache: yes
+
+- name: Add NVIDIA Container Toolkit GPG key
+  shell: curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
+  args:
+    creates: /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
+
+- name: Configure NVIDIA Container Toolkit repository
+  shell: |
+    curl -s -L https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list | \
+    sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' > /etc/apt/sources.list.d/nvidia-container-toolkit.list
+  args:
+    creates: /etc/apt/sources.list.d/nvidia-container-toolkit.list
+
+- name: Install NVIDIA Container Toolkit and Runtime
+  apt:
+    name:
+      - nvidia-container-toolkit
+      - nvidia-container-runtime
+    state: present
+    update_cache: yes
