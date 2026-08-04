@@ -91,6 +91,7 @@ jobs:
   build-and-push:
     name: Build & Push Image (${{ matrix.image }})
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     needs: detect
     if: ${{ needs.detect.outputs.matrix != '[]' && needs.detect.outputs.matrix != '' }}
     permissions:

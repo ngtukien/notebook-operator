@@ -6,12 +6,12 @@ FROM nvcr.io/nvidia/cuda:12.4.1-base-ubuntu22.04
 RUN useradd -ms /bin/bash candidate && echo 'candidate:candidate' | chpasswd
 
 # Install core utilities and Python
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN apt-get update -o Acquire::Retries=3 && apt-get install -y --no-install-recommends \
     python3 python3-pip git \
     && rm -rf /var/lib/apt/lists/*
 
 # Install lightweight generic ML tools and JupyterLab
-RUN pip3 install --no-cache-dir \
+RUN pip3 install --no-cache-dir --default-timeout=100 \
     numpy pandas scikit-learn matplotlib xgboost jupyterlab
 
 # Set default shell to bash for Jupyter terminal
