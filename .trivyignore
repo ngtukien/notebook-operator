@@ -7,3 +7,8 @@ KSV-0014
 # Bỏ qua cảnh báo runAsUser > 10000 vì user 'candidate' đang có UID là 1000
 KSV-0020
 KSV-0021
+
+# Bỏ qua cảnh báo RBAC cho Operator Controller Manager (Bắt buộc phải quản lý Secret, Service, Ingress cho VirtualNotebook)
+KSV-0041
+KSV-0056
+

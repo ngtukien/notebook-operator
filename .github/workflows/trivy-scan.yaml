@@ -21,6 +21,7 @@ jobs:
         with:
           scan-type: 'config'
           scan-ref: 'config/'
+          trivy-ignores-config: '.trivyignore'
           format: 'table'
           exit-code: '1'      # Cảnh báo: Sẽ đánh trượt Pipeline nếu phát hiện lỗi ở các file yaml
           severity: 'CRITICAL,HIGH'
