@@ -1,6 +1,6 @@
-ARG IMAGE_NAME=gpu-container
+ARG IMAGE_NAME=jupiter-container
 ARG IMAGE_TAG=huggingface
-FROM ghcr.io/nguyentukien/gpu-container:slim
+FROM ghcr.io/ngtukien/jupiter-container:slim
 
 # Install PyTorch (backend) and HuggingFace ecosystem
 RUN pip3 install --no-cache-dir \

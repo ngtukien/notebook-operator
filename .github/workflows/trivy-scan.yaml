@@ -20,7 +20,7 @@ jobs:
         uses: aquasecurity/trivy-action@master
         with:
           scan-type: 'config'
-          scan-ref: 'manifests/'
+          scan-ref: 'config/'
           format: 'table'
           exit-code: '1'      # Cảnh báo: Sẽ đánh trượt Pipeline nếu phát hiện lỗi ở các file yaml
           severity: 'CRITICAL,HIGH'
@@ -28,14 +28,14 @@ jobs:
       # Bước 2: Build Docker Image (Ví dụ với bản HuggingFace)
       - name: Build Docker Image (HuggingFace)
         run: |
-          docker build -t ghcr.io/nguyentukien/gpu-container:huggingface -f images/Dockerfile.container-huggingface images/
+          docker build -t ghcr.io/ngtukien/jupiter-container:huggingface -f images/Dockerfile.container-huggingface images/
 
       # Bước 3: Quét lỗ hổng phần mềm (CVEs) trong thư viện của Docker Image
       - name: Quét lỗ hổng Image (CVEs)
         uses: aquasecurity/trivy-action@master
         with:
           scan-type: 'image'
-          image-ref: 'ghcr.io/nguyentukien/gpu-container:huggingface'
+          image-ref: 'ghcr.io/ngtukien/jupiter-container:huggingface'
           format: 'table'
           exit-code: '1'      # Bắt buộc sập Pipeline (Failed) nếu phát hiện lỗi CRITICAL/HIGH trong thư viện
           severity: 'CRITICAL,HIGH'

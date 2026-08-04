@@ -1,4 +1,4 @@
-ARG IMAGE_NAME=gpu-container
+ARG IMAGE_NAME=jupiter-container
 ARG IMAGE_TAG=slim
 FROM nvcr.io/nvidia/cuda:12.4.1-base-ubuntu22.04
 
