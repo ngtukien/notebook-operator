@@ -1,4 +1,4 @@
-module kubeclass/jupiter-operator
+module ngtukien/jupiter-operator
 
 go 1.26.0
 

@@ -1,0 +1,4 @@
+## Append samples of your project ##
+resources:
+- lab_v1alpha1_virtualnotebook.yaml
+# +kubebuilder:scaffold:manifestskustomizesamples

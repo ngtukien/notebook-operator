@@ -8,4 +8,14 @@ layout:
 - go.kubebuilder.io/v4
 projectName: jupiter-operator
 repo: ngtukien/jupiter-operator
+resources:
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: ngtukien.id.vn
+  group: lab
+  kind: VirtualNotebook
+  path: ngtukien/jupiter-operator/api/v1alpha1
+  version: v1alpha1
 version: "3"
