@@ -6,7 +6,7 @@ on:
     tags: [ "*" ]
     paths:
       - 'images/**'
-      - '.github/workflows/ci.yaml'
+      - '.github/workflows/build-image.yaml'
   pull_request:
     branches: [ "main" ]
     paths:

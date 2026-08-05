@@ -2,7 +2,33 @@ name: E2E Tests
 
 on:
   push:
+    paths:
+      - 'api/**'
+      - 'cmd/**'
+      - 'internal/**'
+      - 'config/**'
+      - 'test/**'
+      - 'hack/**'
+      - 'go.mod'
+      - 'go.sum'
+      - 'Makefile'
+      - 'Dockerfile'
+      - '.golangci.yml'
+      - '.github/workflows/test-e2e.yml'
   pull_request:
+    paths:
+      - 'api/**'
+      - 'cmd/**'
+      - 'internal/**'
+      - 'config/**'
+      - 'test/**'
+      - 'hack/**'
+      - 'go.mod'
+      - 'go.sum'
+      - 'Makefile'
+      - 'Dockerfile'
+      - '.golangci.yml'
+      - '.github/workflows/test-e2e.yml'
 
 permissions: {}
 

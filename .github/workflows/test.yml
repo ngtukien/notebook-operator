@@ -2,7 +2,33 @@ name: Tests
 
 on:
   push:
+    paths:
+      - 'api/**'
+      - 'cmd/**'
+      - 'internal/**'
+      - 'config/**'
+      - 'test/**'
+      - 'hack/**'
+      - 'go.mod'
+      - 'go.sum'
+      - 'Makefile'
+      - 'Dockerfile'
+      - '.golangci.yml'
+      - '.github/workflows/test.yml'
   pull_request:
+    paths:
+      - 'api/**'
+      - 'cmd/**'
+      - 'internal/**'
+      - 'config/**'
+      - 'test/**'
+      - 'hack/**'
+      - 'go.mod'
+      - 'go.sum'
+      - 'Makefile'
+      - 'Dockerfile'
+      - '.golangci.yml'
+      - '.github/workflows/test.yml'
 
 permissions: {}
 
