@@ -128,39 +128,19 @@ jobs:
 
       - name: Build and push Docker image
         run: |
-          REPO_LOWER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          REPO_LOWER=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
           DOCKERFILE="./images/Dockerfile.${{ matrix.image }}"
           
-          IMAGE_NAME=$(grep -E '^ARG IMAGE_NAME=' "$DOCKERFILE" | head -n1 | cut -d= -f2 | tr -d '"' | tr -d "'")
-          if [ -z "$IMAGE_NAME" ]; then
-            IMAGE_NAME=$(echo "${{ matrix.image }}" | tr '[:upper:]' '[:lower:]')
-          fi
-          
-          IMAGE_LOWER=$(echo "$IMAGE_NAME" | tr '[:upper:]' '[:lower:]')
-          BASE_IMAGE="${{ env.REGISTRY }}/${REPO_LOWER}/${IMAGE_LOWER}"
+          IMAGE_NAME=$(echo "${{ matrix.image }}" | tr '[:upper:]' '[:lower:]')
+          BASE_IMAGE="${{ env.REGISTRY }}/${REPO_LOWER}/${IMAGE_NAME}"
 
-          VERSION=$(grep -E '^ARG IMAGE_TAG=' "$DOCKERFILE" | head -n1 | cut -d= -f2 | tr -d '"' | tr -d "'")
-
-          TAGS=()
-          if [ -n "$VERSION" ]; then
-            TAGS+=("-t" "${BASE_IMAGE}:${VERSION}")
-          else
-            TAGS+=("-t" "${BASE_IMAGE}:latest")
-          fi
+          TAGS=("-t" "${BASE_IMAGE}:latest")
 
           SHORT_SHA=$(git rev-parse --short HEAD)
-          if [ -n "$VERSION" ]; then
-            TAGS+=("-t" "${BASE_IMAGE}:${VERSION}-${SHORT_SHA}")
-          else
-            TAGS+=("-t" "${BASE_IMAGE}:${SHORT_SHA}")
-          fi
+          TAGS+=("-t" "${BASE_IMAGE}:${SHORT_SHA}")
 
           if [[ "${{ github.ref }}" == refs/tags/* ]]; then
-            if [ -n "$VERSION" ]; then
-              TAGS+=("-t" "${BASE_IMAGE}:${VERSION}-${{ github.ref_name }}")
-            else
-              TAGS+=("-t" "${BASE_IMAGE}:${{ github.ref_name }}")
-            fi
+            TAGS+=("-t" "${BASE_IMAGE}:${{ github.ref_name }}")
           fi
 
           if [ "${{ github.event_name }}" == "pull_request" ]; then

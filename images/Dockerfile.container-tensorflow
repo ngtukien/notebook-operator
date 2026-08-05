@@ -1,7 +1,0 @@
-ARG IMAGE_NAME=jupiter-container
-ARG IMAGE_TAG=tensorflow
-FROM ghcr.io/ngtukien/jupiter-container:slim
-
-# Install TensorFlow and related libraries --default-timeout=100 
-RUN pip3 install --no-cache-dir \
-    tensorflow[and-cuda] keras tensorboard

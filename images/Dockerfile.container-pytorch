@@ -1,7 +1,0 @@
-ARG IMAGE_NAME=jupiter-container
-ARG IMAGE_TAG=pytorch
-FROM ghcr.io/ngtukien/jupiter-container:slim
-
-# Install PyTorch (backend) and HuggingFace ecosystem --default-timeout=100 
-RUN pip3 install --no-cache-dir \
-    torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
