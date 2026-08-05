@@ -33,8 +33,8 @@ jobs:
       - name: Build Docker Image (HuggingFace)
         if: always()
         run: |
-          docker build -t ghcr.io/ngtukien/jupiter-operator/base-image:latest -f images/Dockerfile.base-image images/
-          docker build -t ghcr.io/ngtukien/jupiter-operator/huggingface:latest -f images/Dockerfile.huggingface images/
+          docker build -t ghcr.io/ngtukien/jupyter-operator/base-image:latest -f images/Dockerfile.base-image images/
+          docker build -t ghcr.io/ngtukien/jupyter-operator/huggingface:latest -f images/Dockerfile.huggingface images/
 
       # Bước 3: Quét lỗ hổng phần mềm (CVEs) trong thư viện của Docker Image
       - name: Quét lỗ hổng Image (CVEs)
@@ -44,7 +44,7 @@ jobs:
         continue-on-error: true
         with:
           scan-type: 'image'
-          image-ref: 'ghcr.io/ngtukien/jupiter-operator/huggingface:latest'
+          image-ref: 'ghcr.io/ngtukien/jupyter-operator/huggingface:latest'
           trivy-ignores-config: '.trivyignore'
           format: 'table'
           output: 'trivy-image-report.txt'

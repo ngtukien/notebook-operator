@@ -1,4 +1,4 @@
-FROM ghcr.io/ngtukien/jupiter-operator/base-image:latest
+FROM ghcr.io/ngtukien/jupyter-operator/base-image:latest
 
 # Install PyTorch (backend) and HuggingFace ecosystem
 RUN pip3 install --no-cache-dir \
