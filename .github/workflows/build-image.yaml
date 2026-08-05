@@ -134,6 +134,15 @@ jobs:
           IMAGE_NAME=$(echo "${{ matrix.image }}" | tr '[:upper:]' '[:lower:]')
           BASE_IMAGE="${{ env.REGISTRY }}/${REPO_LOWER}/${IMAGE_NAME}"
 
+          # Nếu image không phải base-image và base-image chưa có sẵn trên GHCR, tự động build base-image trước
+          if [ "${{ matrix.image }}" != "base-image" ] && [ -f "./images/Dockerfile.base-image" ]; then
+            BASE_IMAGE_TAG="${{ env.REGISTRY }}/${REPO_LOWER}/base-image:latest"
+            if ! docker manifest inspect "$BASE_IMAGE_TAG" >/dev/null 2>&1; then
+              echo "Base image $BASE_IMAGE_TAG chưa có trên GHCR, đang build trước..."
+              docker buildx build --file "./images/Dockerfile.base-image" -t "$BASE_IMAGE_TAG" --load ./images
+            fi
+          fi
+
           TAGS=("-t" "${BASE_IMAGE}:latest")
 
           SHORT_SHA=$(git rev-parse --short HEAD)
