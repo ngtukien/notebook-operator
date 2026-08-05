@@ -1,6 +1,6 @@
-# KubeEdu - Jupiter Operator Infrastructure (Ansible)
+# KubeClass - Notebook Operator Infrastructure (Ansible)
 
-Thư mục này chứa toàn bộ kịch bản Ansible (Playbooks & Roles) để tự động hóa việc xây dựng một cụm Kubernetes (K3s) hỗ trợ GPU mạnh mẽ. Cụm này được thiết kế đặc biệt để chạy **Jupiter Operator** với các công nghệ cắt GPU ảo hóa như **HAMi** và chuẩn **DRA (Dynamic Resource Allocation)**.
+Thư mục này chứa toàn bộ kịch bản Ansible (Playbooks & Roles) để tự động hóa việc xây dựng một cụm Kubernetes (K3s) hỗ trợ GPU mạnh mẽ. Cụm này được thiết kế đặc biệt để chạy **Notebook Operator** với các công nghệ cắt GPU ảo hóa như **HAMi** và chuẩn **DRA (Dynamic Resource Allocation)**.
 
 ## Kiến trúc 5 Phase (Roles)
 

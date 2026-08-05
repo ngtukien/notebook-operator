@@ -19,7 +19,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	labv1alpha1 "ngtukien/jupiter-operator/api/v1alpha1"
+	labv1alpha1 "github.com/ngtukien/notebook-operator/api/v1alpha1"
 )
 
 const appLabelKey = "app"
@@ -513,7 +513,7 @@ func (r *VirtualNotebookReconciler) reconcileNetworking(ctx context.Context, not
 	err = r.Get(ctx, types.NamespacedName{Name: ingName, Namespace: notebook.Namespace}, ing)
 	if err != nil && apierrors.IsNotFound(err) {
 		pathType := networkingv1.PathTypePrefix
-		host := notebook.Name + ".lab.ngtukien.id.vn" // Domain mặc định theo chuẩn KubeEdu
+		host := notebook.Name + ".lab.ngtukien.id.vn" // Domain mặc định theo chuẩn KubeClass
 
 		ing = &networkingv1.Ingress{
 			ObjectMeta: metav1.ObjectMeta{

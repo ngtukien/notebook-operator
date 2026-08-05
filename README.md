@@ -1,8 +1,8 @@
-# 🚀 KubeEdu Jupiter Operator — Cloud-Native AI/ML & Jupyter Notebook Lab Platform
+# 🚀 KubeClass Notebook Operator — Cloud-Native AI/ML & Jupyter Notebook Lab Platform
 
-![Kubebuilder](https://img.shields.io/badge/Kubebuilder-v4-blue.svg) ![Kubernetes](https://img.shields.io/badge/Kubernetes-v1.32+-326ce5.svg) ![Go Version](https://img.shields.io/badge/Go-v1.26+-00ADD8.svg) ![NVIDIA GPU](https://img.shields.io/badge/GPU-NVIDIA%20%2F%20HAMi%20vGPU-76B900.svg) ![Ansible](https://img.shields.io/badge/Ansible-Kubespray%20Style-EE0000.svg)
+![Kubebuilder](https://img.shields.io/badge/Kubebuilder-v4-blue.svg) ![Kubernetes](https://img.shields.io/badge/Kubernetes-v1.32+-326ce5.svg) ![Go Version](https://img.shields.io/badge/Go-v1.26+-00ADD8.svg) ![PyTorch](https://img.shields.io/badge/PyTorch-v2.6.0-EE4C2C.svg) ![TensorFlow](https://img.shields.io/badge/TensorFlow-v2.18.0-FF6F00.svg)
 
-**KubeEdu Jupiter Operator** là bộ điều khiển Kubernetes Operator tiêu chuẩn doanh nghiệp thuộc hệ sinh thái **KubeEdu**, chuyên tự động hóa việc khởi tạo, quản trị vòng đời và phân phối môi trường phòng thí nghiệm AI/ML & Jupyter Notebook (Cloud-Native Interactive Lab Platform) trên hạ tầng điện toán đám mây.
+**KubeClass Notebook Operator** là bộ điều khiển Kubernetes Operator tiêu chuẩn doanh nghiệp thuộc hệ sinh thái **KubeClass**, chuyên tự động hóa việc khởi tạo, quản trị vòng đời và phân phối môi trường phòng thí nghiệm AI/ML & Jupyter Notebook (Cloud-Native Interactive Lab Platform) trên hạ tầng điện toán đám mây.
 
 Hệ thống được thiết kế tối ưu cho các khóa học Trí tuệ nhân tạo (AI/ML), Khai phá dữ liệu (Data Science) và Học máy tại các Trường đại học cũng như Doanh nghiệp, hỗ trợ tăng tốc phần cứng **NVIDIA GPU (HAMi vGPU / MIG / DRA)**, bảo mật siết chặt **Pod Hardening (Non-Root)**, lưu trữ dữ liệu bền vững và tự động thu hồi tài nguyên thông minh (**Pause/Resume & Idle Timeout**).
 
@@ -14,7 +14,7 @@ Hệ thống vận hành dựa trên Custom Resource Definition: **`VirtualNoteb
 
 ```mermaid
 graph TD
-    User([🧑‍💻 Sinh viên / AI Engineer / Giảng viên]) -->|Gõ YAML hoặc qua API Web| Operator[⚙️ KubeEdu Jupiter Operator]
+    User([🧑‍💻 Sinh viên / AI Engineer / Giảng viên]) -->|Gõ YAML hoặc qua API Web| Operator[⚙️ KubeClass Notebook Operator]
     Operator -->|Quản trị Môi trường Lab| VN[📓 VirtualNotebook CRD]
 
     subgraph "Kubernetes Namespace"
@@ -77,7 +77,7 @@ ansible-playbook cluster.yml -i inventory/lab-cluster/hosts.ini
 
 #### ⚡ Thực thi Zero-Clone (Không cần git clone):
 ```bash
-curl -fsSL https://raw.githubusercontent.com/ngtukien/jupiter-operator/main/ansible/cluster.yml | ansible-playbook -i "localhost," -c local /dev/stdin
+curl -fsSL https://raw.githubusercontent.com/ngtukien/notebook-operator/main/ansible/cluster.yml | ansible-playbook -i "localhost," -c local /dev/stdin
 ```
 
 ---
@@ -110,13 +110,13 @@ make test-e2e
 #### Cách 1: Triển khai Siêu Tốc qua GitHub Releases (Single-Command Install)
 Dành cho Quản trị viên cụm (Admin), tải file phát hành chính thức `install.yaml`:
 ```bash
-kubectl apply -f https://github.com/ngtukien/jupiter-operator/releases/latest/download/install.yaml
+kubectl apply -f https://github.com/ngtukien/notebook-operator/releases/latest/download/install.yaml
 ```
 
 #### Cách 2: Triển khai dành cho Nhà Phát Triển (Developer Mode)
 ```bash
 # Step 1: Build & Push Docker Image của Operator
-export IMG="ghcr.io/ngtukien/jupiter-operator:v1.0.0"
+export IMG="ghcr.io/ngtukien/notebook-operator:v1.0.0"
 make docker-build docker-push IMG=$IMG
 
 # Step 2: Apply CRDs và Deploy Controller Manager

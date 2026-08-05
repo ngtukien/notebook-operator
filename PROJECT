@@ -6,8 +6,8 @@ cliVersion: 4.15.0
 domain: ngtukien.id.vn
 layout:
 - go.kubebuilder.io/v4
-projectName: jupiter-operator
-repo: ngtukien/jupiter-operator
+projectName: notebook-operator
+repo: github.com/ngtukien/notebook-operator
 resources:
 - api:
     crdVersion: v1
@@ -16,6 +16,6 @@ resources:
   domain: ngtukien.id.vn
   group: lab
   kind: VirtualNotebook
-  path: ngtukien/jupiter-operator/api/v1alpha1
+  path: github.com/ngtukien/notebook-operator/api/v1alpha1
   version: v1alpha1
 version: "3"

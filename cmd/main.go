@@ -35,8 +35,8 @@ import (
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
-	labv1alpha1 "ngtukien/jupiter-operator/api/v1alpha1"
-	"ngtukien/jupiter-operator/internal/controller"
+	labv1alpha1 "github.com/ngtukien/notebook-operator/api/v1alpha1"
+	"github.com/ngtukien/notebook-operator/internal/controller"
 	// +kubebuilder:scaffold:imports
 )
 

@@ -27,7 +27,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	labv1alpha1 "ngtukien/jupiter-operator/api/v1alpha1"
+	labv1alpha1 "github.com/ngtukien/notebook-operator/api/v1alpha1"
 )
 
 var _ = Describe("VirtualNotebook Controller", func() {

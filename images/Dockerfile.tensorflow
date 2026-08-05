@@ -1,4 +1,4 @@
-FROM ghcr.io/ngtukien/jupyter-operator/base-image:latest
+FROM ghcr.io/ngtukien/notebook-operator/base-image:latest
 
 # Install TensorFlow and related libraries (backend)
 RUN pip3 install --no-cache-dir \
