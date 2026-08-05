@@ -202,5 +202,5 @@ kubectl get virtualnotebook -A -o wide
 
 ## 📜 Bản Quyền & Giấy Phép (License)
 
-*Phát triển bởi Đội ngũ Kiến Trúc Sư Hệ Thống — **ToiYeuPTIT Dev & Nguyen Tu Kien** (2026).*  
+*Phát triển bởi **Nguyễn Tự Kiên** (2026).*  
 *Được phát hành dưới các điều khoản của **[Apache License, Version 2.0](LICENSE)**.*
