@@ -23,8 +23,9 @@ spec:
   
   # Cấu hình vòng đời và thu hồi tự động
   lifecycle:
-    idleTimeoutMinutes: 60    # Sau 60p không chạy code -> tự động set replicas = 0
-    maxLifespanHours: 12      # Hard limit: Ép tắt sau 12h dù có đang chạy hay không
+    idleTimeoutMinutes: 60    # Sau 60p không chạy code -> tự động set replicas = 0 (Giữ PVC)
+    maxLifespanHours: 12      # Hard limit: Ép tắt phiên làm việc sau 12h
+    purgeAfterInactiveDays: 7  # Dọn rác triệt để: Xóa hoàn toàn PVC & CRD sau 7 ngày không quay lại
     
   # Hỗ trợ kéo Image từ Private Registry
   imagePullSecrets:

@@ -129,6 +129,12 @@ spec:
                       time before termination.
                     format: int32
                     type: integer
+                  purgeAfterInactiveDays:
+                    description: PurgeAfterInactiveDays specifies consecutive days
+                      of inactivity before permanently purging all resources including
+                      workspace PVC.
+                    format: int32
+                    type: integer
                 type: object
               nodeSelector:
                 additionalProperties:

@@ -6,6 +6,7 @@ package controller
 
 import (
 	"context"
+	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -15,6 +16,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -56,6 +58,18 @@ func (r *VirtualNotebookReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 	}
 
 	// =========================================================================
+	// 1.5. Reconcile Lifecycle Policies (Auto-Purge & Auto-Shutdown)
+	// =========================================================================
+	purged, requeueAfter, err := r.reconcileLifecycle(ctx, notebook)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	if purged {
+		// Resource and PVC deleted due to inactivity purge policy
+		return ctrl.Result{}, nil
+	}
+
+	// =========================================================================
 	// 2. Reconcile PVC (Workspace)
 	// Đảm bảo ổ cứng luôn tồn tại bất kể replicas là 0 hay 1
 	// =========================================================================
@@ -94,7 +108,108 @@ func (r *VirtualNotebookReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 		return ctrl.Result{}, err
 	}
 
-	return ctrl.Result{}, nil
+	return ctrl.Result{RequeueAfter: requeueAfter}, nil
+}
+
+func (r *VirtualNotebookReconciler) reconcileLifecycle(ctx context.Context, notebook *labv1alpha1.VirtualNotebook) (bool, time.Duration, error) {
+	logger := log.FromContext(ctx)
+	if notebook.Spec.Lifecycle == nil {
+		return false, 0, nil
+	}
+
+	var requeueAfter time.Duration
+
+	// 1. PurgeAfterInactiveDays: Xóa hoàn toàn PVC và CRD nếu quá N ngày không quay lại
+	if notebook.Spec.Lifecycle.PurgeAfterInactiveDays > 0 {
+		lastActive := notebook.Status.LastActiveTime
+		if lastActive == nil {
+			lastActive = &notebook.CreationTimestamp
+		}
+
+		inactiveDuration := time.Since(lastActive.Time)
+		maxInactiveDuration := time.Duration(notebook.Spec.Lifecycle.PurgeAfterInactiveDays) * 24 * time.Hour
+
+		if inactiveDuration >= maxInactiveDuration {
+			logger.Info("Purging VirtualNotebook due to inactivity purge policy",
+				"Name", notebook.Name,
+				"InactiveDays", inactiveDuration.Hours()/24,
+				"ThresholdDays", notebook.Spec.Lifecycle.PurgeAfterInactiveDays)
+
+			// Xóa PVC workspace trước để giải phóng đĩa cứng
+			pvcName := notebook.Name + "-workspace"
+			pvc := &corev1.PersistentVolumeClaim{}
+			if err := r.Get(ctx, types.NamespacedName{Name: pvcName, Namespace: notebook.Namespace}, pvc); err == nil {
+				if err := r.Delete(ctx, pvc); err != nil {
+					logger.Error(err, "Failed to delete workspace PVC during purge", "PVC", pvcName)
+				}
+			}
+
+			// Xóa Custom Resource VirtualNotebook
+			if err := r.Delete(ctx, notebook); err != nil {
+				logger.Error(err, "Failed to purge VirtualNotebook resource", "Notebook", notebook.Name)
+				return false, 0, err
+			}
+
+			return true, 0, nil
+		}
+
+		requeueAfter = maxInactiveDuration - inactiveDuration
+	}
+
+	// 2. IdleTimeoutMinutes: Tự động pause (replicas=0) khi rảnh
+	if notebook.Spec.Lifecycle.IdleTimeoutMinutes > 0 && notebook.Status.Phase == labv1alpha1.PhaseRunning {
+		lastActive := notebook.Status.LastActiveTime
+		if lastActive == nil {
+			lastActive = &notebook.CreationTimestamp
+		}
+
+		idleDuration := time.Since(lastActive.Time)
+		maxIdleDuration := time.Duration(notebook.Spec.Lifecycle.IdleTimeoutMinutes) * time.Minute
+
+		if idleDuration >= maxIdleDuration {
+			logger.Info("Idle timeout reached. Pausing VirtualNotebook (replicas=0)",
+				"Name", notebook.Name,
+				"IdleMinutes", idleDuration.Minutes())
+
+			patch := client.MergeFrom(notebook.DeepCopy())
+			notebook.Spec.Replicas = ptr.To(int32(0))
+			if err := r.Patch(ctx, notebook, patch); err != nil {
+				logger.Error(err, "Failed to pause VirtualNotebook on idle timeout")
+				return false, 0, err
+			}
+		} else {
+			remainingIdle := maxIdleDuration - idleDuration
+			if requeueAfter == 0 || remainingIdle < requeueAfter {
+				requeueAfter = remainingIdle
+			}
+		}
+	}
+
+	// 3. MaxLifespanHours: Giới hạn tổng thời gian chạy phiên tối đa
+	if notebook.Spec.Lifecycle.MaxLifespanHours > 0 && notebook.Status.Phase == labv1alpha1.PhaseRunning {
+		runningDuration := time.Since(notebook.CreationTimestamp.Time)
+		maxLifespanDuration := time.Duration(notebook.Spec.Lifecycle.MaxLifespanHours) * time.Hour
+
+		if runningDuration >= maxLifespanDuration {
+			logger.Info("Max lifespan reached. Pausing VirtualNotebook (replicas=0)",
+				"Name", notebook.Name,
+				"RunningHours", runningDuration.Hours())
+
+			patch := client.MergeFrom(notebook.DeepCopy())
+			notebook.Spec.Replicas = ptr.To(int32(0))
+			if err := r.Patch(ctx, notebook, patch); err != nil {
+				logger.Error(err, "Failed to pause VirtualNotebook on max lifespan")
+				return false, 0, err
+			}
+		} else {
+			remainingLifespan := maxLifespanDuration - runningDuration
+			if requeueAfter == 0 || remainingLifespan < requeueAfter {
+				requeueAfter = remainingLifespan
+			}
+		}
+	}
+
+	return false, requeueAfter, nil
 }
 
 // SetupWithManager thiết lập theo dõi các tài nguyên liên quan

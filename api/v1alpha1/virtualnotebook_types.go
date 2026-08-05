@@ -73,6 +73,10 @@ type LifecycleSpec struct {
 	// MaxLifespanHours defines the absolute maximum running time before termination.
 	// +optional
 	MaxLifespanHours int32 `json:"maxLifespanHours,omitempty"`
+
+	// PurgeAfterInactiveDays specifies consecutive days of inactivity before permanently purging all resources including workspace PVC.
+	// +optional
+	PurgeAfterInactiveDays int32 `json:"purgeAfterInactiveDays,omitempty"`
 }
 
 type GPUSpec struct {
