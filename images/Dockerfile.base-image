@@ -1,5 +1,7 @@
 FROM nvcr.io/nvidia/cuda:12.4.1-base-ubuntu22.04
 
+ENV DEBIAN_FRONTEND=noninteractive
+
 # Create candidate user and set a default password
 RUN useradd -ms /bin/bash candidate && echo 'candidate:candidate' | chpasswd
 
