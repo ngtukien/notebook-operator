@@ -1,29 +1,34 @@
 - name: Ensure /etc/cdi directory exists
-  file:
+  ansible.builtin.file:
     path: /etc/cdi
     state: directory
     mode: '0755'
 
 - name: Generate standard CDI spec (nvidia.yaml)
-  command: nvidia-ctk cdi generate --output=/etc/cdi/nvidia.yaml
+  ansible.builtin.command: nvidia-ctk cdi generate --output=/etc/cdi/nvidia.yaml
+  args:
+    creates: /etc/cdi/nvidia.yaml
 
 - name: Generate management CDI spec (nvidia-management.yaml)
-  command: nvidia-ctk cdi generate --mode=management --output=/etc/cdi/nvidia-management.yaml
+  ansible.builtin.command: nvidia-ctk cdi generate --mode=management --output=/etc/cdi/nvidia-management.yaml
+  args:
+    creates: /etc/cdi/nvidia-management.yaml
 
 - name: Fix 'kind' in management CDI spec (HAMi requirement)
-  replace:
+  ansible.builtin.replace:
     path: /etc/cdi/nvidia-management.yaml
     regexp: '^kind: nvidia\.com/gpu'
     replace: 'kind: management.nvidia.com/gpu'
 
 - name: Ensure python3-yaml is installed (required for CDI script)
-  apt:
+  ansible.builtin.apt:
     name: python3-yaml
     state: present
-    update_cache: yes
+    update_cache: true
 
 - name: Add UUID-based device to management CDI spec
-  shell: |
+  ansible.builtin.shell: |
+    set -o pipefail
     GPU_UUID=$(nvidia-smi --query-gpu=gpu_uuid --format=csv,noheader | tr -d ' ')
     python3 - <<PYEOF
     import yaml, copy
@@ -41,3 +46,4 @@
     PYEOF
   args:
     executable: /bin/bash
+  changed_when: false

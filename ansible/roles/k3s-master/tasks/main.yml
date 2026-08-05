@@ -1,45 +1,52 @@
 - name: Ensure curl is installed
-  apt:
+  ansible.builtin.apt:
     name: curl
     state: present
-    update_cache: yes
+    update_cache: true
 
 - name: Install K3s Server (v1.36.2+k3s1)
-  shell: |
+  ansible.builtin.shell: |
+    set -o pipefail
     curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION=v1.36.2+k3s1 sh -s - server --write-kubeconfig-mode=644 --disable=traefik
   args:
     creates: /usr/local/bin/k3s
+    executable: /bin/bash
 
 - name: Khởi động K3s Server lần đầu
-  systemd:
+  ansible.builtin.systemd:
     name: k3s
     state: started
-    enabled: yes
+    enabled: true
 
 - name: Wait for K3s Master node to be ready
-  shell: kubectl get nodes
+  ansible.builtin.command: kubectl get nodes
   environment:
     KUBECONFIG: /etc/rancher/k3s/k3s.yaml
   register: nodes_result
   until: nodes_result.rc == 0
   retries: 5
   delay: 5
+  changed_when: false
 
 - name: Sao chép kubeconfig và thay localhost/127.0.0.1 bằng IP thực
-  shell: |
+  ansible.builtin.shell: |
+    set -o pipefail
     mkdir -p ~/.kube
     sed -e 's|https://127.0.0.1|https://{{ ansible_host }}|g' \
         -e 's|https://localhost|https://{{ ansible_host }}|g' \
         /etc/rancher/k3s/k3s.yaml > ~/.kube/config
     chmod 600 ~/.kube/config
+  args:
+    executable: /bin/bash
+  changed_when: false
 
 - name: Tải kubeconfig về máy local
-  fetch:
+  ansible.builtin.fetch:
     src: ~/.kube/config
     dest: "{{ playbook_dir }}/../k3s.yaml"
-    flat: yes
+    flat: true
 
 - name: Get K3s token for worker nodes
-  command: cat /var/lib/rancher/k3s/server/node-token
+  ansible.builtin.command: cat /var/lib/rancher/k3s/server/node-token
   register: k3s_token
   changed_when: false

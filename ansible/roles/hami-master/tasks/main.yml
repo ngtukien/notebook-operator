@@ -1,34 +1,43 @@
 - name: Uninstall legacy NVIDIA Official Device Plugin (if any)
-  shell: |
+  ansible.builtin.shell: |
+    set -o pipefail
     helm uninstall nvdp -n nvidia-device-plugin || true
     kubectl delete ns nvidia-device-plugin --ignore-not-found
     kubectl delete ds nvidia-device-plugin-daemonset -n kube-system --ignore-not-found
+  args:
+    executable: /bin/bash
   environment:
     KUBECONFIG: /etc/rancher/k3s/k3s.yaml
-  ignore_errors: yes
+  failed_when: false
+  changed_when: false
 
 - name: Label all K3s nodes to enable HAMi scheduling
-  shell: |
+  ansible.builtin.shell: |
     for node in $(kubectl get nodes -o jsonpath='{.items[*].metadata.name}'); do
       kubectl label node $node gpu=on --overwrite
     done
   environment:
     KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  changed_when: false
 
 - name: Create RuntimeClass nvidia
-  shell: |
-    cat <<EOF | kubectl apply -f -
+  ansible.builtin.shell: |
+    set -o pipefail
+    cat <<'EOF' | kubectl apply -f -
     apiVersion: node.k8s.io/v1
     kind: RuntimeClass
     metadata:
       name: nvidia
     handler: nvidia
     EOF
+  args:
+    executable: /bin/bash
   environment:
     KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  changed_when: false
 
 - name: Install cert-manager (Required for HAMi-DRA Webhook)
-  shell: |
+  ansible.builtin.shell: |
     helm repo add jetstack https://charts.jetstack.io
     helm repo update
     helm upgrade --install cert-manager jetstack/cert-manager \
@@ -37,21 +46,24 @@
       --set crds.enabled=true
   environment:
     KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  changed_when: false
 
 - name: Wait for cert-manager to be ready
-  shell: kubectl rollout status deployment cert-manager-webhook -n cert-manager --timeout=90s
+  ansible.builtin.command: kubectl rollout status deployment cert-manager-webhook -n cert-manager --timeout=90s
   environment:
     KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  changed_when: false
 
 - name: Add HAMi-DRA Helm repository
-  shell: |
+  ansible.builtin.shell: |
     helm repo add hami-dra https://project-hami.github.io/HAMi-DRA
     helm repo update
   environment:
     KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  changed_when: false
 
 - name: Install HAMi-DRA via Helm
-  shell: |
+  ansible.builtin.shell: |
     # Disable containerDriver nếu đã cài qua NVIDIA Operator / Toolkit ở Phase 1
     helm upgrade --install hami-dra hami-dra/hami-dra \
       -n hami-system \
@@ -59,3 +71,4 @@
       --set drivers.nvidia.containerDriver=false
   environment:
     KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  changed_when: false
