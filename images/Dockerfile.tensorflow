@@ -1,5 +1,5 @@
 FROM ghcr.io/ngtukien/notebook-operator/base-image:latest
 
-# Install TensorFlow and related libraries (backend)
+# Install TensorFlow and related libraries
 RUN pip3 install --no-cache-dir \
     tensorflow[and-cuda] keras tensorboard
