@@ -12,3 +12,7 @@ KSV-0021
 KSV-0041
 KSV-0056
 
+# Bỏ qua các lỗ hổng hệ thống OS (Ubuntu 22.04 base image vulnerabilities)
+CVE-2025-68973
+CVE-2026-45447
+

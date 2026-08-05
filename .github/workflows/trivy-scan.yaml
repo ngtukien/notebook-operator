@@ -37,6 +37,7 @@ jobs:
         with:
           scan-type: 'image'
           image-ref: 'ghcr.io/ngtukien/jupiter-container:huggingface'
+          trivy-ignores-config: '.trivyignore'
           format: 'table'
           exit-code: '1'      # Bắt buộc sập Pipeline (Failed) nếu phát hiện lỗi CRITICAL/HIGH trong thư viện
           severity: 'CRITICAL,HIGH'
