@@ -1,5 +1,5 @@
 FROM ghcr.io/ngtukien/jupiter-operator/base-image:latest
 
-# Install TensorFlow and related libraries 
+# Install TensorFlow and related libraries (backend)
 RUN pip3 install --no-cache-dir \
     tensorflow[and-cuda] keras tensorboard
