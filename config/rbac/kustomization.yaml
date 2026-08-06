@@ -3,6 +3,10 @@ resources:
 - service_account.yaml
 - leader_election_role.yaml
 - leader_election_role_binding.yaml
+- metrics_auth_role.yaml
+- metrics_auth_role_binding.yaml
+- metrics_reader_role.yaml
 - notebooklab_admin_role.yaml
 - notebooklab_editor_role.yaml
 - notebooklab_viewer_role.yaml
+
