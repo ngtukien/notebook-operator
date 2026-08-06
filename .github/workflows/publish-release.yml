@@ -73,9 +73,66 @@ jobs:
           name: install-manifest
           path: dist/install.yaml
 
+      - name: Build single-file Ansible playbook (cluster-setup.yml)
+        run: |
+          python3 - <<'PYEOF'
+          import yaml, pathlib, sys
+
+          ansible_dir = pathlib.Path("ansible")
+          dist_dir    = pathlib.Path("dist")
+          dist_dir.mkdir(exist_ok=True)
+
+          # Map each play's role name -> tasks/main.yml path
+          role_tasks = {
+            "nvidia":     ansible_dir / "roles/nvidia/tasks/main.yml",
+            "k3s-master": ansible_dir / "roles/k3s-master/tasks/main.yml",
+            "k3s-worker": ansible_dir / "roles/k3s-worker/tasks/main.yml",
+            "hami-node":  ansible_dir / "roles/hami-node/tasks/main.yml",
+            "hami-master":ansible_dir / "roles/hami-master/tasks/main.yml",
+          }
+
+          source_plays = yaml.safe_load((ansible_dir / "cluster.yml").read_text())
+
+          merged_plays = []
+          for play in source_plays:
+              new_play = {k: v for k, v in play.items() if k != "roles"}
+              inline_tasks = []
+              for role_entry in play.get("roles", []):
+                  role_name = role_entry["role"] if isinstance(role_entry, dict) else role_entry
+                  task_file = role_tasks.get(role_name)
+                  if task_file and task_file.exists():
+                      tasks = yaml.safe_load(task_file.read_text()) or []
+                      # Prefix task names with the role for clarity
+                      for t in tasks:
+                          t["name"] = f"[{role_name}] {t.get('name', '')}"
+                      inline_tasks.extend(tasks)
+                  else:
+                      print(f"WARNING: tasks not found for role '{role_name}'", file=sys.stderr)
+              new_play["tasks"] = inline_tasks
+              merged_plays.append(new_play)
+
+          out = dist_dir / "cluster-setup.yml"
+          with out.open("w") as f:
+              f.write("# =============================================================================\n")
+              f.write("# AUTO-GENERATED — do not edit directly.\n")
+              f.write("# ansible-playbook cluster-setup.yml -i your_inventory\n")
+              f.write("# =============================================================================\n")
+              yaml.dump(merged_plays, f, allow_unicode=True, default_flow_style=False, sort_keys=False)
+
+          print(f"Generated {out} ({out.stat().st_size} bytes, {len(merged_plays)} plays)")
+          PYEOF
+
+      - name: Upload Ansible single-file playbook as Pipeline Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ansible-playbook
+          path: dist/cluster-setup.yml
+
       - name: Publish GitHub Release (when triggered by tag)
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/install.yaml
+          files: |
+            dist/install.yaml
+            dist/cluster-setup.yml
           generate_release_notes: true
