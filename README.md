@@ -1,8 +1,8 @@
-# 🚀 KubeClass Notebook Operator — Cloud-Native AI/ML & Jupyter Notebook Lab Platform
+# 🚀 Notebook Operator — Cloud-Native AI/ML & NotebookLab Platform
 
 ![Kubebuilder](https://img.shields.io/badge/Kubebuilder-v4-blue.svg) ![Kubernetes](https://img.shields.io/badge/Kubernetes-v1.32+-326ce5.svg) ![Go Version](https://img.shields.io/badge/Go-v1.26+-00ADD8.svg) ![PyTorch](https://img.shields.io/badge/PyTorch-v2.6.0-EE4C2C.svg) ![TensorFlow](https://img.shields.io/badge/TensorFlow-v2.18.0-FF6F00.svg)
 
-**KubeClass Notebook Operator** là bộ điều khiển Kubernetes Operator tiêu chuẩn doanh nghiệp thuộc hệ sinh thái **KubeClass**, chuyên tự động hóa việc khởi tạo, quản trị vòng đời và phân phối môi trường phòng thí nghiệm AI/ML & Jupyter Notebook (Cloud-Native Interactive Lab Platform) trên hạ tầng điện toán đám mây.
+**Notebook Operator** là bộ điều khiển Kubernetes Operator tiêu chuẩn doanh nghiệp, chuyên tự động hóa việc khởi tạo, quản trị vòng đời và phân phối môi trường phòng thí nghiệm AI/ML & Jupyter Notebook (Cloud-Native Interactive Lab Platform) trên hạ tầng điện toán đám mây.
 
 Hệ thống được thiết kế tối ưu cho các khóa học Trí tuệ nhân tạo (AI/ML), Khai phá dữ liệu (Data Science) và Học máy tại các Trường đại học cũng như Doanh nghiệp, hỗ trợ tăng tốc phần cứng **NVIDIA GPU (HAMi vGPU / MIG / DRA)**, bảo mật siết chặt **Pod Hardening (Non-Root)**, lưu trữ dữ liệu bền vững và tự động thu hồi tài nguyên thông minh (**Pause/Resume & Idle Timeout**).
 
@@ -10,20 +10,20 @@ Hệ thống được thiết kế tối ưu cho các khóa học Trí tuệ nh�
 
 ## 🏛️ Kiến Trúc Hệ Thống & Tài Nguyên Tùy Chỉnh (CRDs)
 
-Hệ thống vận hành dựa trên Custom Resource Definition: **`VirtualNotebook`** thuộc API Group `lab.ngtukien.id.vn/v1alpha1`:
+Hệ thống vận hành dựa trên Custom Resource Definition: **`NotebookLab`** thuộc API Group `lab.ngtukien.id.vn/v1alpha1`:
 
 ```mermaid
 graph TD
-    User([🧑‍💻 Sinh viên / AI Engineer / Giảng viên]) -->|Gõ YAML hoặc qua API Web| Operator[⚙️ KubeClass Notebook Operator]
-    Operator -->|Quản trị Môi trường Lab| VN[📓 VirtualNotebook CRD]
+    User([🧑‍💻 Sinh viên / AI Engineer / Giảng viên]) -->|Gõ YAML hoặc qua API Web| Operator[⚙️ Notebook Operator]
+    Operator -->|Quản trị Môi trường Lab| NL[📓 NotebookLab CRD]
 
     subgraph "Kubernetes Namespace"
-        VN -->|1. Cấp phát Token Bảo mật| SEC[🔐 Secret<br/>name-secret]
-        VN -->|2. Cấp phát Workspace Bền vững| PVC[💾 PersistentVolumeClaim<br/>Read-Write Workspace PVC]
-        VN -->|3. Tạo Mẫu GPU Dynamic Allocation| RCT[🎮 ResourceClaimTemplate<br/>HAMi vGPU / K8s DRA]
-        VN -->|4. Khởi tạo & Scale Deployment| DEP[🚀 Deployment<br/>JupyterLab Pod - Non-Root]
-        VN -->|5. Định tuyến Cổng Cụm| SVC[🌐 ClusterIP Service<br/>Port 8888]
-        VN -->|6. Cấp Domain & SSL WSS| ING[🔒 Ingress<br/>Cert-Manager & WebSocket]
+        NL -->|1. Cấp phát Token Bảo mật| SEC[🔐 Secret<br/>name-secret]
+        NL -->|2. Cấp phát Workspace Bền vững| PVC[💾 PersistentVolumeClaim<br/>Read-Write Workspace PVC]
+        NL -->|3. Tạo Mẫu GPU Dynamic Allocation| RCT[🎮 ResourceClaimTemplate<br/>HAMi vGPU / K8s DRA]
+        NL -->|4. Khởi tạo & Scale Deployment| DEP[🚀 Deployment<br/>JupyterLab Pod - Non-Root]
+        NL -->|5. Định tuyến Cổng Cụm| SVC[🌐 ClusterIP Service<br/>Port 8888]
+        NL -->|6. Cấp Domain & SSL WSS| ING[🔒 Ingress<br/>Cert-Manager & WebSocket]
     end
 
     DEP -->|Mount| PVC
@@ -31,7 +31,7 @@ graph TD
     DEP -->|Yêu cầu vGPU| RCT
 ```
 
-### Key Features của `VirtualNotebook`
+### Key Features của `NotebookLab`
 
 1. **Quản lý Vòng đời & Tự động Tắt máy (Lifecycle & Auto-Scaling):**
    * **Tạm dừng / Tiếp tục (Pause/Resume):** Khi đặt `replicas: 0`, Operator lập tức giải phóng hoàn toàn Pod và tài nguyên GPU/CPU đắt đỏ về cho cụm, nhưng **giữ nguyên 100% dữ liệu Workspace PVC** của người dùng.
@@ -51,7 +51,7 @@ graph TD
 
 ## 🏗️ Hướng Dẫn Khởi Tạo Cụm & Cấu Hình GPU/HAMi (Ansible Engine)
 
-Hệ thống trang bị bộ động cơ tự động hóa Ansible (phong cách **Kubespray**) giúp biến các máy chủ thô thành cụm K3s/Kubeadm sẵn sàng chạy GPU và HAMi vGPU.
+Hệ thống trang bị bộ động cơ tự động hóa Ansible giúp biến các máy chủ thô thành cụm K3s/Kubeadm sẵn sàng chạy GPU và HAMi vGPU.
 
 ### Cấu Trúc Thư Mục Ansible (`ansible/`)
 ```text
@@ -126,13 +126,13 @@ make deploy IMG=$IMG
 
 ---
 
-## 📦 Ví Dụ Khai Báo `VirtualNotebook` (Quickstart Sample)
+## 📦 Ví Dụ Khai Báo `NotebookLab` (Quickstart Sample)
 
-Tạo file `sample-virtualnotebook.yaml`:
+Tạo file `sample-notebooklab.yaml`:
 
 ```yaml
 apiVersion: lab.ngtukien.id.vn/v1alpha1
-kind: VirtualNotebook
+kind: NotebookLab
 metadata:
   name: jupyter-ai-lab01
   namespace: default
@@ -180,7 +180,7 @@ spec:
         mountPath: "/datasets/mnist"
 ```
 
-Áp dụng lên cụm: `kubectl apply -f sample-virtualnotebook.yaml`
+Áp dụng lên cụm: `kubectl apply -f sample-notebooklab.yaml`
 
 ---
 
@@ -188,7 +188,7 @@ spec:
 
 Kiểm tra trạng thái các Notebook đang chạy trên cụm:
 ```bash
-kubectl get virtualnotebook -A -o wide
+kubectl get notebooklab -A -o wide
 ```
 
 ### Các Phase Trạng Thái (`Status.Phase`):

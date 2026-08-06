@@ -26,8 +26,8 @@ import (
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
-// VirtualNotebookSpec defines the desired state of VirtualNotebook
-type VirtualNotebookSpec struct {
+// NotebookLabSpec defines the desired state of NotebookLab
+type NotebookLabSpec struct {
 	// Replicas defines the desired number of instances. Used for Pause/Resume. Defaults to 1.
 	// +kubebuilder:default:=1
 	// +optional
@@ -164,22 +164,22 @@ type DatasetSpec struct {
 	MountPath string `json:"mountPath"`
 }
 
-// VirtualNotebookPhase defines the overall status of the notebook
-type VirtualNotebookPhase string
+// NotebookLabPhase defines the overall status of the notebook
+type NotebookLabPhase string
 
 const (
-	PhaseProvisioning VirtualNotebookPhase = "Provisioning"
-	PhaseRunning      VirtualNotebookPhase = "Running"
-	PhasePausing      VirtualNotebookPhase = "Pausing"
-	PhasePaused       VirtualNotebookPhase = "Paused"
-	PhaseFailed       VirtualNotebookPhase = "Failed"
+	PhaseProvisioning NotebookLabPhase = "Provisioning"
+	PhaseRunning      NotebookLabPhase = "Running"
+	PhasePausing      NotebookLabPhase = "Pausing"
+	PhasePaused       NotebookLabPhase = "Paused"
+	PhaseFailed       NotebookLabPhase = "Failed"
 )
 
-// VirtualNotebookStatus defines the observed state of VirtualNotebook.
-type VirtualNotebookStatus struct {
-	// Phase is the high-level status of the VirtualNotebook.
+// NotebookLabStatus defines the observed state of NotebookLab.
+type NotebookLabStatus struct {
+	// Phase is the high-level status of the NotebookLab.
 	// +optional
-	Phase VirtualNotebookPhase `json:"phase,omitempty"`
+	Phase NotebookLabPhase `json:"phase,omitempty"`
 
 	// PodName is the name of the underlying active Pod.
 	// +optional
@@ -209,7 +209,7 @@ type VirtualNotebookStatus struct {
 	// +optional
 	GPUStatus *GPUStatus `json:"gpuStatus,omitempty"`
 
-	// Conditions represent the current state of the VirtualNotebook resource.
+	// Conditions represent the current state of the NotebookLab resource.
 	// +listType=map
 	// +listMapKey=type
 	// +optional
@@ -236,40 +236,40 @@ type GPUStatus struct {
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
-// +kubebuilder:printcolumn:name="Phase",type="string",JSONPath=".status.phase",description="The current phase of the VirtualNotebook"
+// +kubebuilder:printcolumn:name="Phase",type="string",JSONPath=".status.phase",description="The current phase of the NotebookLab"
 // +kubebuilder:printcolumn:name="Pod",type="string",JSONPath=".status.podName",description="The active Pod name"
 // +kubebuilder:printcolumn:name="URL",type="string",JSONPath=".status.accessUrl",description="The Access URL"
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
 
-// VirtualNotebook is the Schema for the virtualnotebooks API
-type VirtualNotebook struct {
+// NotebookLab is the Schema for the notebooklabs API
+type NotebookLab struct {
 	metav1.TypeMeta `json:",inline"`
 
 	// metadata is a standard object metadata
 	// +optional
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	// spec defines the desired state of VirtualNotebook
+	// spec defines the desired state of NotebookLab
 	// +required
-	Spec VirtualNotebookSpec `json:"spec"`
+	Spec NotebookLabSpec `json:"spec"`
 
-	// status defines the observed state of VirtualNotebook
+	// status defines the observed state of NotebookLab
 	// +optional
-	Status VirtualNotebookStatus `json:"status,omitempty"`
+	Status NotebookLabStatus `json:"status,omitempty"`
 }
 
 // +kubebuilder:object:root=true
 
-// VirtualNotebookList contains a list of VirtualNotebook
-type VirtualNotebookList struct {
+// NotebookLabList contains a list of NotebookLab
+type NotebookLabList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []VirtualNotebook `json:"items"`
+	Items           []NotebookLab `json:"items"`
 }
 
 func init() {
 	SchemeBuilder.Register(func(s *runtime.Scheme) error {
-		s.AddKnownTypes(SchemeGroupVersion, &VirtualNotebook{}, &VirtualNotebookList{})
+		s.AddKnownTypes(SchemeGroupVersion, &NotebookLab{}, &NotebookLabList{})
 		return nil
 	})
 }

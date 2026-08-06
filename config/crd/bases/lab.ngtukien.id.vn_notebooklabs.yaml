@@ -4,18 +4,18 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.21.0
-  name: virtualnotebooks.lab.ngtukien.id.vn
+  name: notebooklabs.lab.ngtukien.id.vn
 spec:
   group: lab.ngtukien.id.vn
   names:
-    kind: VirtualNotebook
-    listKind: VirtualNotebookList
-    plural: virtualnotebooks
-    singular: virtualnotebook
+    kind: NotebookLab
+    listKind: NotebookLabList
+    plural: notebooklabs
+    singular: notebooklab
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
-    - description: The current phase of the VirtualNotebook
+    - description: The current phase of the NotebookLab
       jsonPath: .status.phase
       name: Phase
       type: string
@@ -33,7 +33,7 @@ spec:
     name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: VirtualNotebook is the Schema for the virtualnotebooks API
+        description: NotebookLab is the Schema for the notebooklabs API
         properties:
           apiVersion:
             description: |-
@@ -53,7 +53,7 @@ spec:
           metadata:
             type: object
           spec:
-            description: spec defines the desired state of VirtualNotebook
+            description: spec defines the desired state of NotebookLab
             properties:
               gpu:
                 description: GPU defines the GPU configuration and scheduling parameters.
@@ -319,14 +319,14 @@ spec:
             - image
             type: object
           status:
-            description: status defines the observed state of VirtualNotebook
+            description: status defines the observed state of NotebookLab
             properties:
               accessUrl:
                 description: AccessURL is the URL where the user can access the JupyterLab
                   interface.
                 type: string
               conditions:
-                description: Conditions represent the current state of the VirtualNotebook
+                description: Conditions represent the current state of the NotebookLab
                   resource.
                 items:
                   description: Condition contains details for one aspect of the current
@@ -418,7 +418,7 @@ spec:
                   running.
                 type: string
               phase:
-                description: Phase is the high-level status of the VirtualNotebook.
+                description: Phase is the high-level status of the NotebookLab.
                 type: string
               podName:
                 description: PodName is the name of the underlying active Pod.

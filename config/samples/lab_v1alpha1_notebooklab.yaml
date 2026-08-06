@@ -1,0 +1,17 @@
+apiVersion: lab.ngtukien.id.vn/v1alpha1
+kind: NotebookLab
+metadata:
+  labels:
+    app.kubernetes.io/name: notebook-operator
+    app.kubernetes.io/managed-by: kustomize
+  name: notebooklab-sample
+spec:
+  image: "jupyter/scipy-notebook:latest"
+  replicas: 1
+  resources:
+    limits:
+      cpu: "2"
+      memory: "4Gi"
+    requests:
+      cpu: "1"
+      memory: "2Gi"

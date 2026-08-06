@@ -1,17 +1,17 @@
-# Kiến trúc `VirtualNotebook` (Jupiter Operator)
+# Kiến trúc `NotebookLab` (Notebook Operator)
 
 ## 1. Thiết kế API (API Design)
 
-`VirtualNotebook` là một Custom Resource Definition (CRD) thuộc API Group `lab.ngtukien.id.vn/v1alpha1`, cung cấp giao diện khai báo chuẩn Kubernetes cho người dùng cuối và hệ thống Nền tảng (Platform Service).
+`NotebookLab` là một Custom Resource Definition (CRD) thuộc API Group `lab.ngtukien.id.vn/v1alpha1`, cung cấp giao diện khai báo chuẩn Kubernetes cho người dùng cuối và hệ thống Nền tảng (Platform Service).
 
 ### 1.1. Định nghĩa Spec (Desired State)
 Đây là trạng thái mong muốn do người dùng (hoặc Frontend/Backend của nền tảng) gửi xuống Kubernetes API:
 
 ```yaml
 apiVersion: lab.ngtukien.id.vn/v1alpha1
-kind: VirtualNotebook
+kind: NotebookLab
 metadata:
-  name: virtualnotebook-sample
+  name: notebooklab-sample
   labels:
     UserID: "1"
     ProjectID: "1"
@@ -92,13 +92,13 @@ status:
   phase: "Running"
 
   # Tên Pod thực tế dưới Kubernetes
-  podName: "virtualnotebook-sample-7445494f44-x89zk"
+  podName: "notebooklab-sample-7445494f44-x89zk"
 
   # Tên PVC lưu trữ Workspace
-  pvcName: "virtualnotebook-sample-workspace-pvc"
+  pvcName: "notebooklab-sample-workspace-pvc"
 
   # Access URL chứa JupyterLab token bảo mật
-  accessUrl: "https://virtualnotebook-sample.lab.ngtukien.id.vn"
+  accessUrl: "https://notebooklab-sample.lab.ngtukien.id.vn"
 
   # Quản lý vòng đời (Countdown UI)
   lastActiveTime: "2026-08-04T12:00:00Z"
@@ -127,7 +127,7 @@ status:
 
 ## 2. Chuẩn Bảo mật & Pod Hardening (Security Standards)
 
-Jupiter Operator tuân thủ nghiêm ngặt các quy tắc bảo mật **Least Privilege & Security Hardening** cho Kubernetes Pod:
+Notebook Operator tuân thủ nghiêm ngặt các quy tắc bảo mật **Least Privilege & Security Hardening** cho Kubernetes Pod:
 
 1. **Pod SecurityContext**:
    - `runAsNonRoot: true`: Ép container **không được** thực thi với quyền Root (UID 0).
@@ -148,7 +148,7 @@ Jupiter Operator tuân thủ nghiêm ngặt các quy tắc bảo mật **Least P
 
 ## 3. Ma trận tài nguyên (Resources Matrix)
 
-`VirtualNotebook` đóng vai trò là tài nguyên chủ (**Owner Resource**). Các tài nguyên con (**Owned Resources**) do Controller quản lý tự động thông qua `OwnerReference` bao gồm:
+`NotebookLab` đóng vai trò là tài nguyên chủ (**Owner Resource**). Các tài nguyên con (**Owned Resources**) do Controller quản lý tự động thông qua `OwnerReference` bao gồm:
 
 | Tài nguyên (Resource) | Loại | Chức năng trong hệ thống |
 | ------------------- | ---- | ---------------------- |
@@ -167,7 +167,7 @@ Mỗi khi nhận sự kiện (Add / Update / Delete) hoặc khi tài nguyên con
 
 ```mermaid
 graph TD
-    A[K8s Event: Add/Update/Delete] --> B[1. Fetch VirtualNotebook CR]
+    A[K8s Event: Add/Update/Delete] --> B[1. Fetch NotebookLab CR]
     B -->|Không tìm thấy| C[Kết thúc / K8s GC tự thu hồi]
     B -->|Tồn tại| D[2. Reconcile Secret]
     

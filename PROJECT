@@ -15,7 +15,7 @@ resources:
   controller: true
   domain: ngtukien.id.vn
   group: lab
-  kind: VirtualNotebook
+  kind: NotebookLab
   path: github.com/ngtukien/notebook-operator/api/v1alpha1
   version: v1alpha1
 version: "3"

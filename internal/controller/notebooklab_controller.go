@@ -26,34 +26,33 @@ import (
 
 const appLabelKey = "app"
 
-// VirtualNotebookReconciler reconciles a VirtualNotebook object
-type VirtualNotebookReconciler struct {
+// NotebookLabReconciler reconciles a NotebookLab object
+type NotebookLabReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
 }
 
 // Cấp quyền (RBAC) cho Operator để nó có thể thao tác với các Resource của K8s
-// +kubebuilder:rbac:groups=lab.ngtukien.id.vn,resources=virtualnotebooks,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=lab.ngtukien.id.vn,resources=virtualnotebooks/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=lab.ngtukien.id.vn,resources=virtualnotebooks/finalizers,verbs=update
+// +kubebuilder:rbac:groups=lab.ngtukien.id.vn,resources=notebooklabs,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=lab.ngtukien.id.vn,resources=notebooklabs/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=lab.ngtukien.id.vn,resources=notebooklabs/finalizers,verbs=update
 // +kubebuilder:rbac:groups="",resources=persistentvolumeclaims;services;secrets;events,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=networking.k8s.io,resources=ingresses,verbs=get;list;watch;create;update;patch;delete
 
-func (r *VirtualNotebookReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (r *NotebookLabReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 
 	// =========================================================================
-	// 1. Fetch instance VirtualNotebook
+	// 1. Fetch instance NotebookLab
 	// =========================================================================
-	notebook := &labv1alpha1.VirtualNotebook{}
+	notebook := &labv1alpha1.NotebookLab{}
 	err := r.Get(ctx, req.NamespacedName, notebook)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
-			// CRD đã bị xóa, K8s Garbage Collector sẽ tự lo phần dọn dẹp nếu đã set OwnerReference
 			return ctrl.Result{}, nil
 		}
-		logger.Error(err, "Failed to get VirtualNotebook")
+		logger.Error(err, "Failed to get NotebookLab")
 		return ctrl.Result{}, err
 	}
 
@@ -65,13 +64,11 @@ func (r *VirtualNotebookReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 		return ctrl.Result{}, err
 	}
 	if purged {
-		// Resource and PVC deleted due to inactivity purge policy
 		return ctrl.Result{}, nil
 	}
 
 	// =========================================================================
 	// 2. Reconcile PVC (Workspace)
-	// Đảm bảo ổ cứng luôn tồn tại bất kể replicas là 0 hay 1
 	// =========================================================================
 	if notebook.Spec.Storage != nil && notebook.Spec.Storage.Workspace != nil {
 		err = r.reconcileWorkspacePVC(ctx, notebook)
@@ -82,7 +79,6 @@ func (r *VirtualNotebookReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 
 	// =========================================================================
 	// 3. Reconcile Deployment & Secret (Token)
-	// Quản lý việc Tạm dừng / Tiếp tục bằng cách scale Deployment về 0 hoặc 1
 	// =========================================================================
 	err = r.reconcileJupyterDeployment(ctx, notebook)
 	if err != nil {
@@ -91,7 +87,6 @@ func (r *VirtualNotebookReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 
 	// =========================================================================
 	// 4. Reconcile Service & Ingress (Network)
-	// Mở kết nối mạng từ bên ngoài vào JupyterLab
 	// =========================================================================
 	err = r.reconcileNetworking(ctx, notebook)
 	if err != nil {
@@ -100,18 +95,17 @@ func (r *VirtualNotebookReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 
 	// =========================================================================
 	// 5. Cập nhật Status
-	// Đọc trạng thái thực tế của Deployment/Ingress và báo cáo về CRD
 	// =========================================================================
 	err = r.updateNotebookStatus(ctx, notebook)
 	if err != nil {
-		logger.Error(err, "Failed to update VirtualNotebook status")
+		logger.Error(err, "Failed to update NotebookLab status")
 		return ctrl.Result{}, err
 	}
 
 	return ctrl.Result{RequeueAfter: requeueAfter}, nil
 }
 
-func (r *VirtualNotebookReconciler) reconcileLifecycle(ctx context.Context, notebook *labv1alpha1.VirtualNotebook) (bool, time.Duration, error) {
+func (r *NotebookLabReconciler) reconcileLifecycle(ctx context.Context, notebook *labv1alpha1.NotebookLab) (bool, time.Duration, error) {
 	logger := log.FromContext(ctx)
 	if notebook.Spec.Lifecycle == nil {
 		return false, 0, nil
@@ -119,7 +113,7 @@ func (r *VirtualNotebookReconciler) reconcileLifecycle(ctx context.Context, note
 
 	var requeueAfter time.Duration
 
-	// 1. PurgeAfterInactiveDays: Xóa hoàn toàn PVC và CRD nếu quá N ngày không quay lại
+	// 1. PurgeAfterInactiveDays
 	if notebook.Spec.Lifecycle.PurgeAfterInactiveDays > 0 {
 		lastActive := notebook.Status.LastActiveTime
 		if lastActive == nil {
@@ -130,12 +124,11 @@ func (r *VirtualNotebookReconciler) reconcileLifecycle(ctx context.Context, note
 		maxInactiveDuration := time.Duration(notebook.Spec.Lifecycle.PurgeAfterInactiveDays) * 24 * time.Hour
 
 		if inactiveDuration >= maxInactiveDuration {
-			logger.Info("Purging VirtualNotebook due to inactivity purge policy",
+			logger.Info("Purging NotebookLab due to inactivity purge policy",
 				"Name", notebook.Name,
 				"InactiveDays", inactiveDuration.Hours()/24,
 				"ThresholdDays", notebook.Spec.Lifecycle.PurgeAfterInactiveDays)
 
-			// Xóa PVC workspace trước để giải phóng đĩa cứng
 			pvcName := notebook.Name + "-workspace"
 			pvc := &corev1.PersistentVolumeClaim{}
 			if err := r.Get(ctx, types.NamespacedName{Name: pvcName, Namespace: notebook.Namespace}, pvc); err == nil {
@@ -144,9 +137,8 @@ func (r *VirtualNotebookReconciler) reconcileLifecycle(ctx context.Context, note
 				}
 			}
 
-			// Xóa Custom Resource VirtualNotebook
 			if err := r.Delete(ctx, notebook); err != nil {
-				logger.Error(err, "Failed to purge VirtualNotebook resource", "Notebook", notebook.Name)
+				logger.Error(err, "Failed to purge NotebookLab resource", "Notebook", notebook.Name)
 				return false, 0, err
 			}
 
@@ -156,7 +148,7 @@ func (r *VirtualNotebookReconciler) reconcileLifecycle(ctx context.Context, note
 		requeueAfter = maxInactiveDuration - inactiveDuration
 	}
 
-	// 2. IdleTimeoutMinutes: Tự động pause (replicas=0) khi rảnh
+	// 2. IdleTimeoutMinutes
 	if notebook.Spec.Lifecycle.IdleTimeoutMinutes > 0 && notebook.Status.Phase == labv1alpha1.PhaseRunning {
 		lastActive := notebook.Status.LastActiveTime
 		if lastActive == nil {
@@ -167,14 +159,14 @@ func (r *VirtualNotebookReconciler) reconcileLifecycle(ctx context.Context, note
 		maxIdleDuration := time.Duration(notebook.Spec.Lifecycle.IdleTimeoutMinutes) * time.Minute
 
 		if idleDuration >= maxIdleDuration {
-			logger.Info("Idle timeout reached. Pausing VirtualNotebook (replicas=0)",
+			logger.Info("Idle timeout reached. Pausing NotebookLab (replicas=0)",
 				"Name", notebook.Name,
 				"IdleMinutes", idleDuration.Minutes())
 
 			patch := client.MergeFrom(notebook.DeepCopy())
 			notebook.Spec.Replicas = ptr.To(int32(0))
 			if err := r.Patch(ctx, notebook, patch); err != nil {
-				logger.Error(err, "Failed to pause VirtualNotebook on idle timeout")
+				logger.Error(err, "Failed to pause NotebookLab on idle timeout")
 				return false, 0, err
 			}
 		} else {
@@ -185,20 +177,20 @@ func (r *VirtualNotebookReconciler) reconcileLifecycle(ctx context.Context, note
 		}
 	}
 
-	// 3. MaxLifespanHours: Giới hạn tổng thời gian chạy phiên tối đa
+	// 3. MaxLifespanHours
 	if notebook.Spec.Lifecycle.MaxLifespanHours > 0 && notebook.Status.Phase == labv1alpha1.PhaseRunning {
 		runningDuration := time.Since(notebook.CreationTimestamp.Time)
 		maxLifespanDuration := time.Duration(notebook.Spec.Lifecycle.MaxLifespanHours) * time.Hour
 
 		if runningDuration >= maxLifespanDuration {
-			logger.Info("Max lifespan reached. Pausing VirtualNotebook (replicas=0)",
+			logger.Info("Max lifespan reached. Pausing NotebookLab (replicas=0)",
 				"Name", notebook.Name,
 				"RunningHours", runningDuration.Hours())
 
 			patch := client.MergeFrom(notebook.DeepCopy())
 			notebook.Spec.Replicas = ptr.To(int32(0))
 			if err := r.Patch(ctx, notebook, patch); err != nil {
-				logger.Error(err, "Failed to pause VirtualNotebook on max lifespan")
+				logger.Error(err, "Failed to pause NotebookLab on max lifespan")
 				return false, 0, err
 			}
 		} else {
@@ -212,46 +204,36 @@ func (r *VirtualNotebookReconciler) reconcileLifecycle(ctx context.Context, note
 	return false, requeueAfter, nil
 }
 
-// SetupWithManager thiết lập theo dõi các tài nguyên liên quan
-func (r *VirtualNotebookReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *NotebookLabReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&labv1alpha1.VirtualNotebook{}).
-		// Tell Manager to watch these resources owned by VirtualNotebook
+		For(&labv1alpha1.NotebookLab{}).
 		Owns(&appsv1.Deployment{}).
 		Owns(&corev1.PersistentVolumeClaim{}).
 		Owns(&corev1.Service{}).
 		Owns(&networkingv1.Ingress{}).
-		Owns(&corev1.Secret{}).                    // Thêm Watch Secret
-		Owns(&resourcev1.ResourceClaimTemplate{}). // Thêm Watch DRA Template
+		Owns(&corev1.Secret{}).
+		Owns(&resourcev1.ResourceClaimTemplate{}).
 		Complete(r)
 }
 
-// --- Các hàm Helper (Bạn sẽ implement chi tiết các hàm này) ---
-
-func (r *VirtualNotebookReconciler) reconcileWorkspacePVC(ctx context.Context, notebook *labv1alpha1.VirtualNotebook) error {
+func (r *NotebookLabReconciler) reconcileWorkspacePVC(ctx context.Context, notebook *labv1alpha1.NotebookLab) error {
 	logger := log.FromContext(ctx)
-
-	// Quy ước tên PVC sẽ là: <tên-notebook>-workspace
 	pvcName := notebook.Name + "-workspace"
 	pvc := &corev1.PersistentVolumeClaim{}
 
-	// Kiểm tra xem PVC đã tồn tại trên K8s chưa
 	err := r.Get(ctx, types.NamespacedName{Name: pvcName, Namespace: notebook.Namespace}, pvc)
-
 	if err != nil && apierrors.IsNotFound(err) {
-		// Nếu chưa tồn tại -> Tiến hành tạo mới
 		logger.Info("Creating a new Workspace PVC", "PVC.Namespace", notebook.Namespace, "PVC.Name", pvcName)
 
-		// Khởi tạo đối tượng PVC
 		newPVC := &corev1.PersistentVolumeClaim{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      pvcName,
 				Namespace: notebook.Namespace,
-				Labels:    notebook.Labels, // Kế thừa label từ CRD xuống để dễ quản lý
+				Labels:    notebook.Labels,
 			},
 			Spec: corev1.PersistentVolumeClaimSpec{
 				AccessModes: []corev1.PersistentVolumeAccessMode{
-					corev1.ReadWriteOnce, // Jupyter thường chỉ cần RWO
+					corev1.ReadWriteOnce,
 				},
 				Resources: corev1.VolumeResourceRequirements{
 					Requests: corev1.ResourceList{
@@ -261,43 +243,33 @@ func (r *VirtualNotebookReconciler) reconcileWorkspacePVC(ctx context.Context, n
 			},
 		}
 
-		// Nếu user có chỉ định StorageClass thì map vào
 		if notebook.Spec.Storage.Workspace.StorageClassName != "" {
 			newPVC.Spec.StorageClassName = &notebook.Spec.Storage.Workspace.StorageClassName
 		}
 
-		// BƯỚC QUAN TRỌNG NHẤT: Gắn Owner Reference
-		// Khi user xóa VirtualNotebook CRD, K8s sẽ tự động xóa PVC này (Garbage Collection)
 		if err := ctrl.SetControllerReference(notebook, newPVC, r.Scheme); err != nil {
 			return err
 		}
 
-		// Đẩy lệnh Create xuống K8s API
 		if err := r.Create(ctx, newPVC); err != nil {
 			logger.Error(err, "Failed to create new PVC", "PVC.Namespace", newPVC.Namespace, "PVC.Name", newPVC.Name)
 			return err
 		}
-
-		// Tạo thành công, return nil để đi tiếp tới bước Deployment
 		return nil
 	} else if err != nil {
-		// Gặp lỗi khác (ví dụ: mất kết nối DB K8s)
 		return err
 	}
 
-	// Nếu code chạy đến đây nghĩa là PVC đã tồn tại (không bị lỗi IsNotFound)
-	// Ta không cần làm gì thêm, để nguyên PVC cũ giữ an toàn dữ liệu
 	logger.Info("Workspace PVC already exists", "PVC.Namespace", notebook.Namespace, "PVC.Name", pvcName)
 	return nil
 }
 
-func (r *VirtualNotebookReconciler) reconcileNotebookSecret(ctx context.Context, notebook *labv1alpha1.VirtualNotebook) (string, error) {
+func (r *NotebookLabReconciler) reconcileNotebookSecret(ctx context.Context, notebook *labv1alpha1.NotebookLab) (string, error) {
 	secretName := notebook.Name + "-secret"
 	secret := &corev1.Secret{}
 
 	err := r.Get(ctx, types.NamespacedName{Name: secretName, Namespace: notebook.Namespace}, secret)
 	if err != nil && apierrors.IsNotFound(err) {
-		// Sinh token ngẫu nhiên hoặc hash dựa trên Name
 		token := notebook.Name + "-token-sec"
 
 		newSecret := &corev1.Secret{
@@ -325,21 +297,18 @@ func (r *VirtualNotebookReconciler) reconcileNotebookSecret(ctx context.Context,
 	return string(secret.Data["token"]), nil
 }
 
-func (r *VirtualNotebookReconciler) reconcileJupyterDeployment(ctx context.Context, notebook *labv1alpha1.VirtualNotebook) error {
+func (r *NotebookLabReconciler) reconcileJupyterDeployment(ctx context.Context, notebook *labv1alpha1.NotebookLab) error {
 	logger := log.FromContext(ctx)
 	deployName := notebook.Name
 
-	// 1. Xác định số Replicas (Pause/Resume logic)
 	replicas := int32(1)
 	if notebook.Spec.Replicas != nil {
 		replicas = *notebook.Spec.Replicas
 	}
 
-	// 2. Cấu hình Volumes và VolumeMounts
 	volumes := []corev1.Volume{}
 	volumeMounts := []corev1.VolumeMount{}
 
-	// Workspace Volume
 	if notebook.Spec.Storage != nil && notebook.Spec.Storage.Workspace != nil {
 		volumes = append(volumes, corev1.Volume{
 			Name: "workspace",
@@ -355,7 +324,6 @@ func (r *VirtualNotebookReconciler) reconcileJupyterDeployment(ctx context.Conte
 		})
 	}
 
-	// Datasets Volumes
 	if notebook.Spec.Storage != nil && len(notebook.Spec.Storage.Datasets) > 0 {
 		for _, ds := range notebook.Spec.Storage.Datasets {
 			volumes = append(volumes, corev1.Volume{
@@ -375,7 +343,6 @@ func (r *VirtualNotebookReconciler) reconcileJupyterDeployment(ctx context.Conte
 		}
 	}
 
-	// Mount /tmp emptyDir volume cho các ứng dụng chạy tạm (Jupyter/Python)
 	emptyDirSource := &corev1.EmptyDirVolumeSource{}
 	tmpMountPath := "/tmp"
 
@@ -399,10 +366,8 @@ func (r *VirtualNotebookReconciler) reconcileJupyterDeployment(ctx context.Conte
 		MountPath: tmpMountPath,
 	})
 
-	// 3. Xử lý Tolerations tự động (Auto-inject cho GPU)
 	tolerations := notebook.Spec.Tolerations
 	if notebook.Spec.GPU != nil && notebook.Spec.GPU.Enable && len(tolerations) == 0 {
-		// Tự động inject toleration phổ biến cho GPU node
 		tolerations = append(tolerations, corev1.Toleration{
 			Key:      "nvidia.com/gpu",
 			Operator: corev1.TolerationOpExists,
@@ -410,13 +375,11 @@ func (r *VirtualNotebookReconciler) reconcileJupyterDeployment(ctx context.Conte
 		})
 	}
 
-	// Lấy token từ Secret
 	_, err := r.reconcileNotebookSecret(ctx, notebook)
 	if err != nil {
 		return err
 	}
 
-	// 4. Cấu hình Bảo mật (Security Context & Non-Root)
 	runAsNonRoot := true
 	runAsUser := int64(1000)
 	runAsGroup := int64(1000)
@@ -441,7 +404,6 @@ func (r *VirtualNotebookReconciler) reconcileJupyterDeployment(ctx context.Conte
 		},
 	}
 
-	// 5. Định nghĩa Pod Spec
 	podSpec := corev1.PodSpec{
 		AutomountServiceAccountToken: &autoMountToken,
 		SecurityContext:              podSecurityContext,
@@ -449,7 +411,7 @@ func (r *VirtualNotebookReconciler) reconcileJupyterDeployment(ctx context.Conte
 			{
 				Name:            "jupyter",
 				Image:           notebook.Spec.Image,
-				Resources:       notebook.Spec.Resources, // Kế thừa chuẩn K8s
+				Resources:       notebook.Spec.Resources,
 				VolumeMounts:    volumeMounts,
 				SecurityContext: containerSecurityContext,
 				Env: []corev1.EnvVar{
@@ -471,16 +433,13 @@ func (r *VirtualNotebookReconciler) reconcileJupyterDeployment(ctx context.Conte
 		ImagePullSecrets: notebook.Spec.ImagePullSecrets,
 	}
 
-	// 5. Cấu hình DRA (Dynamic Resource Allocation) cho GPU
 	if notebook.Spec.GPU != nil && notebook.Spec.GPU.Enable {
-		// Gọi hàm helper để tạo ResourceClaimTemplate object
 		if err := r.reconcileGPUResourceClaimTemplate(ctx, notebook); err != nil {
 			return err
 		}
 
 		templateName := notebook.Name + "-gpu-template"
 
-		// Map ResourceClaimTemplate vào Pod Spec
 		podSpec.ResourceClaims = []corev1.PodResourceClaim{
 			{
 				Name:                      "gpu-claim",
@@ -489,7 +448,6 @@ func (r *VirtualNotebookReconciler) reconcileJupyterDeployment(ctx context.Conte
 		}
 	}
 
-	// 6. Xây dựng đối tượng Deployment
 	deploy := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      deployName,
@@ -510,20 +468,16 @@ func (r *VirtualNotebookReconciler) reconcileJupyterDeployment(ctx context.Conte
 		},
 	}
 
-	// Gắn Owner Reference
 	if err := ctrl.SetControllerReference(notebook, deploy, r.Scheme); err != nil {
 		return err
 	}
 
-	// 7. Apply Deployment (Tạo mới hoặc Cập nhật qua Patch)
 	existingDeploy := &appsv1.Deployment{}
 	err = r.Get(ctx, types.NamespacedName{Name: deployName, Namespace: notebook.Namespace}, existingDeploy)
 	if err != nil && apierrors.IsNotFound(err) {
 		logger.Info("Creating a new Jupyter Deployment", "Namespace", deploy.Namespace, "Name", deploy.Name)
 		return r.Create(ctx, deploy)
 	} else if err == nil {
-		// Dùng Patch với MergeFrom để chỉ cập nhật các trường linh hoạt (Replicas, Template)
-		// Tránh lỗi API server từ chối do trùng/đổi immutable fields (LabelSelector)
 		patch := client.MergeFrom(existingDeploy.DeepCopy())
 		existingDeploy.Spec.Replicas = deploy.Spec.Replicas
 		existingDeploy.Spec.Template = deploy.Spec.Template
@@ -533,7 +487,7 @@ func (r *VirtualNotebookReconciler) reconcileJupyterDeployment(ctx context.Conte
 	return err
 }
 
-func (r *VirtualNotebookReconciler) reconcileGPUResourceClaimTemplate(ctx context.Context, notebook *labv1alpha1.VirtualNotebook) error {
+func (r *NotebookLabReconciler) reconcileGPUResourceClaimTemplate(ctx context.Context, notebook *labv1alpha1.NotebookLab) error {
 	logger := log.FromContext(ctx)
 	templateName := notebook.Name + "-gpu-template"
 
@@ -587,10 +541,9 @@ func (r *VirtualNotebookReconciler) reconcileGPUResourceClaimTemplate(ctx contex
 	return nil
 }
 
-func (r *VirtualNotebookReconciler) reconcileNetworking(ctx context.Context, notebook *labv1alpha1.VirtualNotebook) error {
+func (r *NotebookLabReconciler) reconcileNetworking(ctx context.Context, notebook *labv1alpha1.NotebookLab) error {
 	logger := log.FromContext(ctx)
 
-	// 1. Reconcile Service
 	svcName := notebook.Name + "-svc"
 	svc := &corev1.Service{}
 	err := r.Get(ctx, types.NamespacedName{Name: svcName, Namespace: notebook.Namespace}, svc)
@@ -622,13 +575,12 @@ func (r *VirtualNotebookReconciler) reconcileNetworking(ctx context.Context, not
 		return err
 	}
 
-	// 2. Reconcile Ingress
 	ingName := notebook.Name + "-ingress"
 	ing := &networkingv1.Ingress{}
 	err = r.Get(ctx, types.NamespacedName{Name: ingName, Namespace: notebook.Namespace}, ing)
 	if err != nil && apierrors.IsNotFound(err) {
 		pathType := networkingv1.PathTypePrefix
-		host := notebook.Name + ".lab.ngtukien.id.vn" // Domain mặc định theo chuẩn KubeClass
+		host := notebook.Name + ".lab.ngtukien.id.vn"
 
 		ing = &networkingv1.Ingress{
 			ObjectMeta: metav1.ObjectMeta{
@@ -681,8 +633,7 @@ func (r *VirtualNotebookReconciler) reconcileNetworking(ctx context.Context, not
 	return nil
 }
 
-func (r *VirtualNotebookReconciler) updateNotebookStatus(ctx context.Context, notebook *labv1alpha1.VirtualNotebook) error {
-	// Fetch actual Deployment
+func (r *NotebookLabReconciler) updateNotebookStatus(ctx context.Context, notebook *labv1alpha1.NotebookLab) error {
 	deploy := &appsv1.Deployment{}
 	err := r.Get(ctx, types.NamespacedName{Name: notebook.Name, Namespace: notebook.Namespace}, deploy)
 	if err != nil {
@@ -693,7 +644,6 @@ func (r *VirtualNotebookReconciler) updateNotebookStatus(ctx context.Context, no
 		return err
 	}
 
-	// Determine Phase based on Replicas
 	replicas := int32(1)
 	if notebook.Spec.Replicas != nil {
 		replicas = *notebook.Spec.Replicas
@@ -713,7 +663,6 @@ func (r *VirtualNotebookReconciler) updateNotebookStatus(ctx context.Context, no
 		}
 	}
 
-	// Update basic info
 	token, err := r.reconcileNotebookSecret(ctx, notebook)
 	if err != nil {
 		token = notebook.Name + "-token-sec"
@@ -721,17 +670,15 @@ func (r *VirtualNotebookReconciler) updateNotebookStatus(ctx context.Context, no
 	notebook.Status.PVCName = notebook.Name + "-workspace"
 	notebook.Status.AccessURL = "https://" + notebook.Name + ".lab.ngtukien.id.vn/lab?token=" + token
 
-	// Gọi API update Status
 	return r.Status().Update(ctx, notebook)
 }
 
-func (r *VirtualNotebookReconciler) updateStatusError(ctx context.Context, notebook *labv1alpha1.VirtualNotebook, msg string, err error) (ctrl.Result, error) {
-	// Helper function to set Phase = Failed and log message when an error occurs
+func (r *NotebookLabReconciler) updateStatusError(ctx context.Context, notebook *labv1alpha1.NotebookLab, msg string, err error) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 	logger.Error(err, "Reconciliation failed", "message", msg)
 	notebook.Status.Phase = labv1alpha1.PhaseFailed
 	if updateErr := r.Status().Update(ctx, notebook); updateErr != nil {
-		logger.Error(updateErr, "Failed to update VirtualNotebook status on error")
+		logger.Error(updateErr, "Failed to update NotebookLab status on error")
 	}
 	return ctrl.Result{}, err
 }
