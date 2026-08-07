@@ -69,3 +69,23 @@ rules:
   - patch
   - update
   - watch
+- apiGroups:
+  - resource.k8s.io
+  resources:
+  - resourceclaimtemplates
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - resource.k8s.io
+  resources:
+  - resourceclaims
+  verbs:
+  - get
+  - list
+  - watch
