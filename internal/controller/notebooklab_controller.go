@@ -40,6 +40,7 @@ type NotebookLabReconciler struct {
 // +kubebuilder:rbac:groups="",resources=persistentvolumeclaims;services;secrets;events,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=networking.k8s.io,resources=ingresses,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=resource.k8s.io,resources=resourceclaims;resourceclaimtemplates,verbs=get;list;watch;create;update;patch;delete
 
 func (r *NotebookLabReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
@@ -469,6 +470,23 @@ func (r *NotebookLabReconciler) reconcileJupyterDeployment(ctx context.Context, 
 				MountPath: dev,
 			})
 		}
+
+		// Also mount libnvidia-ml.so.1 so nvidia-smi can communicate with the driver
+		hostPathFile := corev1.HostPathFile
+		podSpec.Volumes = append(podSpec.Volumes, corev1.Volume{
+			Name: "libnvidia-ml",
+			VolumeSource: corev1.VolumeSource{
+				HostPath: &corev1.HostPathVolumeSource{
+					Path: "/lib/x86_64-linux-gnu/libnvidia-ml.so.1",
+					Type: &hostPathFile,
+				},
+			},
+		})
+		podSpec.Containers[0].VolumeMounts = append(podSpec.Containers[0].VolumeMounts, corev1.VolumeMount{
+			Name:      "libnvidia-ml",
+			MountPath: "/lib/x86_64-linux-gnu/libnvidia-ml.so.1",
+			ReadOnly:  true,
+		})
 	}
 
 	deploy := &appsv1.Deployment{
