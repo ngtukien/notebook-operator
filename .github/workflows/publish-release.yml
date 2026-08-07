@@ -61,7 +61,9 @@ jobs:
         run: |
           IMAGE_TAG="ghcr.io/${{ github.repository }}:latest"
           if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
-            IMAGE_TAG="ghcr.io/${{ github.repository }}:${GITHUB_REF#refs/tags/}"
+            # Strip 'v' prefix to match docker/metadata-action semver output (e.g. v0.0.2 -> 0.0.2)
+            VERSION="${GITHUB_REF#refs/tags/v}"
+            IMAGE_TAG="ghcr.io/${{ github.repository }}:${VERSION}"
           fi
           # Convert uppercase owner names in GitHub repository to lowercase for container registries
           IMAGE_TAG=$(echo "$IMAGE_TAG" | tr '[:upper:]' '[:lower:]')
