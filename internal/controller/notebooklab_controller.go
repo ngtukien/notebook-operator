@@ -477,7 +477,7 @@ func (r *NotebookLabReconciler) reconcileJupyterDeployment(ctx context.Context, 
 			Name: "libnvidia-ml",
 			VolumeSource: corev1.VolumeSource{
 				HostPath: &corev1.HostPathVolumeSource{
-					Path: "/lib/x86_64-linux-gnu/libnvidia-ml.so.1",
+					Path: "/lib/x86_64-linux-gnu/libnvidia-ml.so.580.142", // Hardcoded driver version for VDT demo
 					Type: &hostPathFile,
 				},
 			},
