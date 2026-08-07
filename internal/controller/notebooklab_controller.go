@@ -6,6 +6,7 @@ package controller
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -447,6 +448,26 @@ func (r *NotebookLabReconciler) reconcileJupyterDeployment(ctx context.Context, 
 				Name:                      "gpu-claim",
 				ResourceClaimTemplateName: &templateName,
 			},
+		}
+
+		// K3s / Containerd v2.x has a known bug with DRA CDI injection.
+		// As a workaround, we must manually mount the NVIDIA character devices.
+		devices := []string{"/dev/nvidia0", "/dev/nvidiactl", "/dev/nvidia-uvm", "/dev/nvidia-uvm-tools"}
+		for i, dev := range devices {
+			hostPathCharDev := corev1.HostPathCharDev
+			podSpec.Volumes = append(podSpec.Volumes, corev1.Volume{
+				Name: fmt.Sprintf("nvidia-dev-%d", i),
+				VolumeSource: corev1.VolumeSource{
+					HostPath: &corev1.HostPathVolumeSource{
+						Path: dev,
+						Type: &hostPathCharDev,
+					},
+				},
+			})
+			podSpec.Containers[0].VolumeMounts = append(podSpec.Containers[0].VolumeMounts, corev1.VolumeMount{
+				Name:      fmt.Sprintf("nvidia-dev-%d", i),
+				MountPath: dev,
+			})
 		}
 	}
 
