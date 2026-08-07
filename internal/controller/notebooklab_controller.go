@@ -580,7 +580,7 @@ func (r *NotebookLabReconciler) reconcileNetworking(ctx context.Context, noteboo
 	err = r.Get(ctx, types.NamespacedName{Name: ingName, Namespace: notebook.Namespace}, ing)
 	if err != nil && apierrors.IsNotFound(err) {
 		pathType := networkingv1.PathTypePrefix
-		host := notebook.Name + ".lab.ngtukien.id.vn"
+		host := notebook.Name + ".local"
 
 		ing = &networkingv1.Ingress{
 			ObjectMeta: metav1.ObjectMeta{
@@ -668,7 +668,7 @@ func (r *NotebookLabReconciler) updateNotebookStatus(ctx context.Context, notebo
 		token = notebook.Name + "-token-sec"
 	}
 	notebook.Status.PVCName = notebook.Name + "-workspace"
-	notebook.Status.AccessURL = "https://" + notebook.Name + ".lab.ngtukien.id.vn/lab?token=" + token
+	notebook.Status.AccessURL = "https://" + notebook.Name + ".local/lab?token=" + token
 
 	return r.Status().Update(ctx, notebook)
 }
