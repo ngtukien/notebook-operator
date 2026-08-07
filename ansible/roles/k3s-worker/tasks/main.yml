@@ -11,6 +11,31 @@
          default(hostvars[groups['master'][0]]['ansible_default_ipv4']['address'] |
          default('127.0.0.1')) }}
 
+- name: Ensure K3s agent config directories exist
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: '0755'
+  loop:
+    - /etc/rancher/k3s
+    - /var/lib/rancher/k3s/agent/etc/containerd
+
+- name: Configure K3s agent kubelet-arg for DynamicResourceAllocation
+  ansible.builtin.copy:
+    dest: /etc/rancher/k3s/config.yaml
+    content: |
+      kubelet-arg:
+        - "feature-gates=DynamicResourceAllocation=true"
+    mode: '0644'
+
+- name: Configure containerd to enable CDI on worker
+  ansible.builtin.copy:
+    dest: /var/lib/rancher/k3s/agent/etc/containerd/config.toml.tmpl
+    content: |
+      [plugins."io.containerd.grpc.v1.cri"]
+        enable_cdi = true
+    mode: '0644'
+
 - name: Install K3s Agent (v1.36.2+k3s1)
   ansible.builtin.shell: |
     set -o pipefail

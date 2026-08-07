@@ -4,6 +4,31 @@
     state: present
     update_cache: true
 
+- name: Ensure K3s config directories exist
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: '0755'
+  loop:
+    - /etc/rancher/k3s
+    - /var/lib/rancher/k3s/agent/etc/containerd
+
+- name: Configure K3s kubelet-arg for DynamicResourceAllocation
+  ansible.builtin.copy:
+    dest: /etc/rancher/k3s/config.yaml
+    content: |
+      kubelet-arg:
+        - "feature-gates=DynamicResourceAllocation=true"
+    mode: '0644'
+
+- name: Configure containerd to enable CDI
+  ansible.builtin.copy:
+    dest: /var/lib/rancher/k3s/agent/etc/containerd/config.toml.tmpl
+    content: |
+      [plugins."io.containerd.grpc.v1.cri"]
+        enable_cdi = true
+    mode: '0644'
+
 - name: Install K3s Server (v1.36.2+k3s1)
   ansible.builtin.shell: |
     set -o pipefail
