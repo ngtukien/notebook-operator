@@ -1,17 +1,47 @@
 apiVersion: lab.ngtukien.id.vn/v1alpha1
 kind: NotebookLab
 metadata:
+  name: my-notebook
+  namespace: default
   labels:
-    app.kubernetes.io/name: notebook-operator
-    app.kubernetes.io/managed-by: kustomize
-  name: notebooklab-sample
+    app: my-notebook
+    user: ngtukien
 spec:
-  image: "jupyter/scipy-notebook:latest"
-  replicas: 1
+  image: ghcr.io/ngtukien/notebook-operator/base-image:latest
+
+  # --- Compute Resources ---
   resources:
-    limits:
-      cpu: "2"
-      memory: "4Gi"
     requests:
-      cpu: "1"
-      memory: "2Gi"
+      cpu: "2"
+      memory: 4Gi
+    limits:
+      cpu: "4"
+      memory: 8Gi
+
+  # --- GPU (HAMi DRA) ---
+  gpu:
+    enable: true
+    type: hami-core-gpu.project-hami.io  # DeviceClass name từ HAMi
+    hami:
+      cores: 50    # 50% GPU cores
+      memory: 3Gi  # 3Gi VRAM
+
+  # --- Storage ---
+  storage:
+    workspace:
+      size: 10Gi
+      storageClassName: local-path   # StorageClass mặc định của K3s
+      mountPath: /workspace
+    tmp:
+      sizeLimit: 2Gi
+      mountPath: /tmp
+
+  # --- Lifecycle Policies ---
+  lifecycle:
+    idleTimeoutMinutes: 60      # Tự pause sau 60 phút idle
+    maxLifespanHours: 8         # Tự pause sau 8 giờ chạy liên tục
+    purgeAfterInactiveDays: 7   # Xóa hoàn toàn sau 7 ngày không dùng
+
+  # --- Scheduling ---
+  nodeSelector:
+    gpu: "on"   # Label được HAMi ansible role gán cho node
