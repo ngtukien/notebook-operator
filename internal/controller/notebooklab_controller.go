@@ -6,6 +6,7 @@ package controller
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -396,6 +397,25 @@ func (r *NotebookLabReconciler) reconcileJupyterDeployment(ctx context.Context, 
 				},
 			},
 		})
+		
+		// Mount GPU devices manually to bypass K3s containerd CDI limitations
+		devices := []string{"/dev/nvidia0", "/dev/nvidiactl", "/dev/nvidia-uvm", "/dev/nvidia-uvm-tools"}
+		for i, dev := range devices {
+			hostPathCharDev := corev1.HostPathCharDev
+			volumes = append(volumes, corev1.Volume{
+				Name: fmt.Sprintf("nvidia-dev-%d", i),
+				VolumeSource: corev1.VolumeSource{
+					HostPath: &corev1.HostPathVolumeSource{
+						Path: dev,
+						Type: &hostPathCharDev,
+					},
+				},
+			})
+			volumeMounts = append(volumeMounts, corev1.VolumeMount{
+				Name:      fmt.Sprintf("nvidia-dev-%d", i),
+				MountPath: dev,
+			})
+		}
 		
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      "nvidia-smi",
