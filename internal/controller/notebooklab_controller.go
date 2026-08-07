@@ -367,11 +367,45 @@ func (r *NotebookLabReconciler) reconcileJupyterDeployment(ctx context.Context, 
 	})
 
 	tolerations := notebook.Spec.Tolerations
-	if notebook.Spec.GPU != nil && notebook.Spec.GPU.Enable && len(tolerations) == 0 {
-		tolerations = append(tolerations, corev1.Toleration{
-			Key:      "nvidia.com/gpu",
-			Operator: corev1.TolerationOpExists,
-			Effect:   corev1.TaintEffectNoSchedule,
+	if notebook.Spec.GPU != nil && notebook.Spec.GPU.Enable {
+		if len(tolerations) == 0 {
+			tolerations = append(tolerations, corev1.Toleration{
+				Key:      "nvidia.com/gpu",
+				Operator: corev1.TolerationOpExists,
+				Effect:   corev1.TaintEffectNoSchedule,
+			})
+		}
+		
+		// Mount nvidia-smi from host to bypass missing CDI tools in lightweight images
+		hostPathFile := corev1.HostPathFile
+		volumes = append(volumes, corev1.Volume{
+			Name: "nvidia-smi",
+			VolumeSource: corev1.VolumeSource{
+				HostPath: &corev1.HostPathVolumeSource{
+					Path: "/usr/bin/nvidia-smi",
+					Type: &hostPathFile,
+				},
+			},
+		})
+		volumes = append(volumes, corev1.Volume{
+			Name: "libnvidia-ml",
+			VolumeSource: corev1.VolumeSource{
+				HostPath: &corev1.HostPathVolumeSource{
+					Path: "/lib/x86_64-linux-gnu/libnvidia-ml.so.1",
+					Type: &hostPathFile,
+				},
+			},
+		})
+		
+		volumeMounts = append(volumeMounts, corev1.VolumeMount{
+			Name:      "nvidia-smi",
+			MountPath: "/usr/bin/nvidia-smi",
+			ReadOnly:  true,
+		})
+		volumeMounts = append(volumeMounts, corev1.VolumeMount{
+			Name:      "libnvidia-ml",
+			MountPath: "/lib/x86_64-linux-gnu/libnvidia-ml.so.1",
+			ReadOnly:  true,
 		})
 	}
 
