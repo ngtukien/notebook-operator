@@ -1,5 +1,6 @@
 resources:
 - role.yaml
+- role_binding.yaml
 - service_account.yaml
 - leader_election_role.yaml
 - leader_election_role_binding.yaml
@@ -9,4 +10,3 @@ resources:
 - notebooklab_admin_role.yaml
 - notebooklab_editor_role.yaml
 - notebooklab_viewer_role.yaml
-
