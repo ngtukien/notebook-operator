@@ -43,7 +43,7 @@
 - name: Tải kubeconfig về máy local
   ansible.builtin.fetch:
     src: ~/.kube/config
-    dest: "{{ playbook_dir }}/../k3s.yaml"
+    dest: "~/k3s.yaml"
     flat: true
 
 - name: Get K3s token for worker nodes
