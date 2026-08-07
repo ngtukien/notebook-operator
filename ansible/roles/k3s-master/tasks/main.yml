@@ -7,7 +7,7 @@
 - name: Install K3s Server (v1.36.2+k3s1)
   ansible.builtin.shell: |
     set -o pipefail
-    curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION=v1.36.2+k3s1 sh -s - server --write-kubeconfig-mode=644 --disable=traefik
+    curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION=v1.36.2+k3s1 sh -s - server --write-kubeconfig-mode=644
   args:
     creates: /usr/local/bin/k3s
     executable: /bin/bash
