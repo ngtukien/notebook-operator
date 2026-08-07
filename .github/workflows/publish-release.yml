@@ -57,6 +57,16 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Build and push Base Container Image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./images
+          file: ./images/Dockerfile.base-image
+          push: true
+          tags: ghcr.io/${{ github.repository }}/base-image:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
       - name: Generate distribution manifest (install.yaml)
         run: |
           IMAGE_TAG="ghcr.io/${{ github.repository }}:latest"
