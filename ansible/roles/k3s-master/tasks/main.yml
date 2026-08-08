@@ -89,9 +89,18 @@
         -e 's|https://localhost|https://{{ ansible_host }}|g' \
         /etc/rancher/k3s/k3s.yaml > ~/.kube/config
     chmod 600 ~/.kube/config
+
+    if [ -n "{{ ansible_env.SUDO_USER | default('') }}" ]; then
+      TARGET_HOME=$(eval echo "~{{ ansible_env.SUDO_USER }}")
+      mkdir -p "$TARGET_HOME/.kube"
+      cp ~/.kube/config "$TARGET_HOME/.kube/config"
+      chown -R {{ ansible_env.SUDO_USER }} "$TARGET_HOME/.kube"
+      chmod 600 "$TARGET_HOME/.kube/config"
+    fi
   args:
     executable: /bin/bash
   changed_when: false
+
 
 - name: Tải kubeconfig về máy local
   ansible.builtin.fetch:

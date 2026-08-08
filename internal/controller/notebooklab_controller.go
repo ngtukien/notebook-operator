@@ -518,21 +518,30 @@ func (r *NotebookLabReconciler) injectGPUResources(container *corev1.Container, 
 		}
 
 	default:
-		// HAMi (and standard nvidia device plugin): always request 1 GPU.
+		// HAMi (and standard nvidia device plugin): request 1 vGPU device.
 		container.Resources.Limits[corev1.ResourceName("nvidia.com/gpu")] = *apiresource.NewQuantity(1, apiresource.DecimalSI)
 
-		// HAMi extended resources for vGPU memory and core partitioning.
+		// HAMi vGPU memory and core isolation via environment variables (read by HAMi libvgpu.so).
 		if gpu.HAMi != nil {
 			if !gpu.HAMi.Memory.IsZero() {
-				// HAMi gpumem unit is MiB (integer).
 				memMiB := gpu.HAMi.Memory.Value() / (1024 * 1024)
-				container.Resources.Limits[corev1.ResourceName("nvidia.com/gpumem")] = *apiresource.NewQuantity(memMiB, apiresource.DecimalSI)
+				setOrUpdateEnv(&container.Env, "CUDA_VGPU_MEM", fmt.Sprintf("%d", memMiB))
 			}
 			if gpu.HAMi.Cores > 0 {
-				container.Resources.Limits[corev1.ResourceName("nvidia.com/gpucores")] = *apiresource.NewQuantity(int64(gpu.HAMi.Cores), apiresource.DecimalSI)
+				setOrUpdateEnv(&container.Env, "CUDA_VGPU_CORES", fmt.Sprintf("%d", gpu.HAMi.Cores))
 			}
 		}
 	}
+}
+
+func setOrUpdateEnv(envVars *[]corev1.EnvVar, name, value string) {
+	for i, e := range *envVars {
+		if e.Name == name {
+			(*envVars)[i].Value = value
+			return
+		}
+	}
+	*envVars = append(*envVars, corev1.EnvVar{Name: name, Value: value})
 }
 
 func (r *NotebookLabReconciler) reconcileNetworking(ctx context.Context, notebook *labv1alpha1.NotebookLab) error {
