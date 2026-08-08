@@ -444,6 +444,8 @@ func (r *NotebookLabReconciler) reconcileJupyterDeployment(ctx context.Context, 
 		ImagePullSecrets: notebook.Spec.ImagePullSecrets,
 	}
 
+
+
 	// Device Plugin: Inject GPU resource limits based on provider type.
 	// - hami: uses nvidia.com/gpu + optional nvidia.com/gpumem + nvidia.com/gpucores
 	//         (HAMi device plugin intercepts and enforces vGPU memory/core limits)
