@@ -428,9 +428,9 @@ func (r *NotebookLabReconciler) reconcileJupyterDeployment(ctx context.Context, 
 		SecurityContext:              podSecurityContext,
 		Containers: []corev1.Container{
 			{
-				Name:            "jupyter",
-				Image:           notebook.Spec.Image,
-				Resources:       containerResources,
+				Name:      "jupyter",
+				Image:     notebook.Spec.Image,
+				Resources: containerResources,
 
 				VolumeMounts:    volumeMounts,
 				SecurityContext: containerSecurityContext,
@@ -452,8 +452,6 @@ func (r *NotebookLabReconciler) reconcileJupyterDeployment(ctx context.Context, 
 		Tolerations:      tolerations,
 		ImagePullSecrets: notebook.Spec.ImagePullSecrets,
 	}
-
-
 
 	// Device Plugin: Inject GPU resource limits based on provider type.
 	// - hami: uses nvidia.com/gpu + optional nvidia.com/gpumem + nvidia.com/gpucores
