@@ -4,6 +4,23 @@
     state: present
     update_cache: true
 
+# Kiểm tra và gỡ K3s cũ nếu version không khớp v1.34
+- name: Check installed K3s version
+  ansible.builtin.command: k3s --version
+  register: k3s_version_check
+  failed_when: false
+  changed_when: false
+
+- name: Uninstall outdated K3s (if not v1.34)
+  ansible.builtin.shell: /usr/local/bin/k3s-uninstall.sh
+  args:
+    executable: /bin/bash
+  when:
+    - k3s_version_check.rc == 0
+    - "'v1.34' not in k3s_version_check.stdout"
+  failed_when: false
+
+
 - name: Ensure K3s config directories exist
   ansible.builtin.file:
     path: "{{ item }}"
@@ -13,26 +30,20 @@
     - /etc/rancher/k3s
     - /var/lib/rancher/k3s/agent/etc/containerd
 
-- name: Configure K3s kubelet-arg for DynamicResourceAllocation
+# K3s v1.34+ : Device Plugin mode — không cần DRA feature gates.
+# HAMi device plugin và NVIDIA MIG device plugin đều sử dụng chuẩn
+# Extended Resources qua Device Plugin API (kubelet gRPC).
+- name: Configure K3s server
   ansible.builtin.copy:
     dest: /etc/rancher/k3s/config.yaml
     content: |
-      kubelet-arg:
-        - "feature-gates=DynamicResourceAllocation=true"
+      write-kubeconfig-mode: "0644"
     mode: '0644'
 
-- name: Configure containerd to enable CDI
-  ansible.builtin.copy:
-    dest: /var/lib/rancher/k3s/agent/etc/containerd/config.toml.tmpl
-    content: |
-      [plugins."io.containerd.grpc.v1.cri"]
-        enable_cdi = true
-    mode: '0644'
-
-- name: Install K3s Server (v1.36.2+k3s1)
+- name: Install K3s Server (v1.34)
   ansible.builtin.shell: |
     set -o pipefail
-    curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION=v1.36.2+k3s1 sh -s - server --write-kubeconfig-mode=644
+    curl -sfL https://get.k3s.io | INSTALL_K3S_CHANNEL=v1.34 sh -s - server
   args:
     creates: /usr/local/bin/k3s
     executable: /bin/bash
@@ -49,8 +60,24 @@
     KUBECONFIG: /etc/rancher/k3s/k3s.yaml
   register: nodes_result
   until: nodes_result.rc == 0
-  retries: 5
-  delay: 5
+  retries: 10
+  delay: 10
+  changed_when: false
+
+- name: Wait for all system pods to be scheduled
+  ansible.builtin.shell: |
+    set -o pipefail
+    PENDING=$(kubectl get pods -A --field-selector=status.phase=Pending --no-headers 2>/dev/null | wc -l)
+    echo "Pending pods: $PENDING"
+    [ "$PENDING" -eq 0 ]
+  args:
+    executable: /bin/bash
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  register: pods_result
+  until: pods_result.rc == 0
+  retries: 30
+  delay: 10
   changed_when: false
 
 - name: Sao chép kubeconfig và thay localhost/127.0.0.1 bằng IP thực

@@ -1,49 +1,14 @@
+# CDI (Container Device Interface) cho phép containerd nhận diện GPU.
+# HAMi device plugin cũng sử dụng CDI để inject device nodes vào Pod.
+# Chỉ cần file nvidia.yaml tiêu chuẩn — không cần management spec hay UUID hacks.
+
 - name: Ensure /etc/cdi directory exists
   ansible.builtin.file:
     path: /etc/cdi
     state: directory
     mode: '0755'
 
-- name: Generate standard CDI spec (nvidia.yaml)
+- name: Generate CDI spec for NVIDIA GPU
   ansible.builtin.command: nvidia-ctk cdi generate --output=/etc/cdi/nvidia.yaml
   args:
     creates: /etc/cdi/nvidia.yaml
-
-- name: Generate management CDI spec (nvidia-management.yaml)
-  ansible.builtin.command: nvidia-ctk cdi generate --mode=management --output=/etc/cdi/nvidia-management.yaml
-  args:
-    creates: /etc/cdi/nvidia-management.yaml
-
-- name: Fix 'kind' in management CDI spec (HAMi requirement)
-  ansible.builtin.replace:
-    path: /etc/cdi/nvidia-management.yaml
-    regexp: '^kind: nvidia\.com/gpu'
-    replace: 'kind: management.nvidia.com/gpu'
-
-- name: Ensure python3-yaml is installed (required for CDI script)
-  ansible.builtin.apt:
-    name: python3-yaml
-    state: present
-    update_cache: true
-
-- name: Add UUID-based device to management CDI spec
-  ansible.builtin.shell: |
-    set -o pipefail
-    GPU_UUID=$(nvidia-smi --query-gpu=gpu_uuid --format=csv,noheader | tr -d ' ')
-    python3 - <<PYEOF
-    import yaml, copy
-    with open('/etc/cdi/nvidia-management.yaml', 'r') as f:
-        spec = yaml.safe_load(f)
-    all_dev = next((d for d in spec['devices'] if d['name'] == 'all'), None)
-    uuid = "$GPU_UUID"
-    if all_dev and not any(d['name'] == uuid for d in spec['devices']):
-        uuid_dev = copy.deepcopy(all_dev)
-        uuid_dev['name'] = uuid
-        spec['devices'].append(uuid_dev)
-        with open('/etc/cdi/nvidia-management.yaml', 'w') as f:
-            yaml.dump(spec, f, default_flow_style=False)
-        print(f"Added device: {uuid}")
-    PYEOF
-  args:
-    executable: /bin/bash
-  changed_when: false

@@ -36,39 +36,41 @@
     KUBECONFIG: /etc/rancher/k3s/k3s.yaml
   changed_when: false
 
-- name: Install cert-manager (Required for HAMi-DRA Webhook)
+# HAMi Device Plugin: Triển khai HAMi qua Helm Chart (mode device-plugin thuần).
+# HAMi scheduler + device plugin sẽ:
+#   - Expose nvidia.com/gpu, nvidia.com/gpumem, nvidia.com/gpucores extended resources
+#   - Inject libvgpu.so vào container để giới hạn VRAM/Compute
+# Không cần cert-manager hay DRA webhook.
+- name: Add HAMi Helm repository
   ansible.builtin.shell: |
-    helm repo add jetstack https://charts.jetstack.io
-    helm repo update
-    helm upgrade --install cert-manager jetstack/cert-manager \
-      --namespace cert-manager \
-      --create-namespace \
-      --set crds.enabled=true
-  environment:
-    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
-  changed_when: false
-
-- name: Wait for cert-manager to be ready
-  ansible.builtin.command: kubectl rollout status deployment cert-manager-webhook -n cert-manager --timeout=90s
-  environment:
-    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
-  changed_when: false
-
-- name: Add HAMi-DRA Helm repository
-  ansible.builtin.shell: |
-    helm repo add hami-dra https://project-hami.github.io/HAMi-DRA
+    helm repo add hami-charts https://project-hami.github.io/HAMi/
     helm repo update
   environment:
     KUBECONFIG: /etc/rancher/k3s/k3s.yaml
   changed_when: false
 
-- name: Install HAMi-DRA via Helm
+- name: Install HAMi Device Plugin via Helm
   ansible.builtin.shell: |
-    # Disable containerDriver nếu đã cài qua NVIDIA Operator / Toolkit ở Phase 1
-    helm upgrade --install hami-dra hami-dra/hami-dra \
+    helm upgrade --install hami hami-charts/hami \
       -n hami-system \
       --create-namespace \
-      --set drivers.nvidia.containerDriver=false
+      --set scheduler.kubeScheduler.enabled=false \
+      --set devicePlugin.runtimeClassName=nvidia
   environment:
     KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  changed_when: false
+
+- name: Wait for HAMi device plugin to be ready
+  ansible.builtin.shell: |
+    set -o pipefail
+    kubectl rollout status daemonset -n hami-system -l app.kubernetes.io/instance=hami --timeout=120s 2>/dev/null || true
+    kubectl get pods -n hami-system --no-headers 2>/dev/null
+  args:
+    executable: /bin/bash
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  register: hami_result
+  retries: 3
+  delay: 10
+  until: hami_result.rc == 0
   changed_when: false

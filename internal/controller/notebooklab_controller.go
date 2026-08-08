@@ -6,13 +6,14 @@ package controller
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
-	resourcev1 "k8s.io/api/resource/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	apiresource "k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -39,7 +40,6 @@ type NotebookLabReconciler struct {
 // +kubebuilder:rbac:groups="",resources=persistentvolumeclaims;services;secrets;events,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=networking.k8s.io,resources=ingresses,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=resource.k8s.io,resources=resourceclaims;resourceclaimtemplates,verbs=get;list;watch;create;update;patch;delete
 
 func (r *NotebookLabReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
@@ -213,7 +213,6 @@ func (r *NotebookLabReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Owns(&corev1.Service{}).
 		Owns(&networkingv1.Ingress{}).
 		Owns(&corev1.Secret{}).
-		Owns(&resourcev1.ResourceClaimTemplate{}).
 		Complete(r)
 }
 
@@ -389,6 +388,7 @@ func (r *NotebookLabReconciler) reconcileJupyterDeployment(ctx context.Context, 
 	fsGroup := int64(1000)
 	autoMountToken := false
 	allowPrivilegeEscalation := false
+	gpuEnabled := notebook.Spec.GPU != nil && notebook.Spec.GPU.Enable
 
 	podSecurityContext := &corev1.PodSecurityContext{
 		RunAsNonRoot: &runAsNonRoot,
@@ -405,6 +405,14 @@ func (r *NotebookLabReconciler) reconcileJupyterDeployment(ctx context.Context, 
 		Capabilities: &corev1.Capabilities{
 			Drop: []corev1.Capability{"ALL"},
 		},
+	}
+
+	// GPU containers need relaxed security for NVIDIA runtime to inject device nodes
+	if gpuEnabled {
+		allowEscalation := true
+		containerSecurityContext = &corev1.SecurityContext{
+			AllowPrivilegeEscalation: &allowEscalation,
+		}
 	}
 
 	podSpec := corev1.PodSpec{
@@ -436,19 +444,13 @@ func (r *NotebookLabReconciler) reconcileJupyterDeployment(ctx context.Context, 
 		ImagePullSecrets: notebook.Spec.ImagePullSecrets,
 	}
 
-	if notebook.Spec.GPU != nil && notebook.Spec.GPU.Enable {
-		if err := r.reconcileGPUResourceClaimTemplate(ctx, notebook); err != nil {
-			return err
-		}
-
-		templateName := notebook.Name + "-gpu-template"
-
-		podSpec.ResourceClaims = []corev1.PodResourceClaim{
-			{
-				Name:                      "gpu-claim",
-				ResourceClaimTemplateName: &templateName,
-			},
-		}
+	// Device Plugin: Inject GPU resource limits based on provider type.
+	// - hami: uses nvidia.com/gpu + optional nvidia.com/gpumem + nvidia.com/gpucores
+	//         (HAMi device plugin intercepts and enforces vGPU memory/core limits)
+	// - mig:  uses nvidia.com/mig-<profile> extended resource
+	//         (NVIDIA MIG device plugin exposes each partition as a discrete resource)
+	if gpuEnabled {
+		r.injectGPUResources(&podSpec.Containers[0], notebook.Spec.GPU)
 	}
 
 	deploy := &appsv1.Deployment{
@@ -490,58 +492,47 @@ func (r *NotebookLabReconciler) reconcileJupyterDeployment(ctx context.Context, 
 	return err
 }
 
-func (r *NotebookLabReconciler) reconcileGPUResourceClaimTemplate(ctx context.Context, notebook *labv1alpha1.NotebookLab) error {
-	logger := log.FromContext(ctx)
-	templateName := notebook.Name + "-gpu-template"
-
-	template := &resourcev1.ResourceClaimTemplate{}
-	err := r.Get(ctx, types.NamespacedName{Name: templateName, Namespace: notebook.Namespace}, template)
-
-	if err != nil && apierrors.IsNotFound(err) {
-		logger.Info("Creating a new GPU ResourceClaimTemplate", "Namespace", notebook.Namespace, "Name", templateName)
-
-		deviceClassName := "hami" // Tên DeviceClass mặc định cho HAMi
-		if notebook.Spec.GPU.Type != "" {
-			deviceClassName = notebook.Spec.GPU.Type
-		}
-
-		template = &resourcev1.ResourceClaimTemplate{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      templateName,
-				Namespace: notebook.Namespace,
-				Labels:    notebook.Labels,
-			},
-			Spec: resourcev1.ResourceClaimTemplateSpec{
-				Spec: resourcev1.ResourceClaimSpec{
-					Devices: resourcev1.DeviceClaim{
-						Requests: []resourcev1.DeviceRequest{
-							{
-								Name: "gpu",
-								Exactly: &resourcev1.ExactDeviceRequest{
-									DeviceClassName: deviceClassName,
-								},
-							},
-						},
-					},
-				},
-			},
-		}
-
-		if err := ctrl.SetControllerReference(notebook, template, r.Scheme); err != nil {
-			return err
-		}
-
-		if err := r.Create(ctx, template); err != nil {
-			logger.Error(err, "Failed to create GPU ResourceClaimTemplate", "Name", template.Name)
-			return err
-		}
-		return nil
-	} else if err != nil {
-		return err
+// injectGPUResources adds the appropriate extended resource limits to the container
+// depending on the GPU provider:
+//
+//   - hami: requests nvidia.com/gpu=1 (required for HAMi device plugin to bind the physical GPU)
+//     and optionally nvidia.com/gpumem (MiB) + nvidia.com/gpucores (%) so that the
+//     HAMi vGPU scheduler enforces memory and compute isolation.
+//
+//   - mig: requests nvidia.com/mig-<profile>=1 (e.g. nvidia.com/mig-1g.5gb) which is
+//     the extended resource exposed by the NVIDIA MIG device plugin for each partition.
+//
+//   - (default/standard): falls back to nvidia.com/gpu=1 (full GPU via standard plugin).
+func (r *NotebookLabReconciler) injectGPUResources(container *corev1.Container, gpu *labv1alpha1.GPUSpec) {
+	if container.Resources.Limits == nil {
+		container.Resources.Limits = corev1.ResourceList{}
 	}
 
-	logger.Info("GPU ResourceClaimTemplate already exists", "Namespace", notebook.Namespace, "Name", templateName)
-	return nil
+	switch gpu.Type {
+	case "mig":
+		// MIG device plugin: each partition is a distinct extended resource.
+		// Profile must be specified (e.g. "1g.5gb").
+		if gpu.MIG != nil && gpu.MIG.Profile != "" {
+			resourceName := corev1.ResourceName(fmt.Sprintf("nvidia.com/mig-%s", gpu.MIG.Profile))
+			container.Resources.Limits[resourceName] = *apiresource.NewQuantity(1, apiresource.DecimalSI)
+		}
+
+	default:
+		// HAMi (and standard nvidia device plugin): always request 1 GPU.
+		container.Resources.Limits[corev1.ResourceName("nvidia.com/gpu")] = *apiresource.NewQuantity(1, apiresource.DecimalSI)
+
+		// HAMi extended resources for vGPU memory and core partitioning.
+		if gpu.HAMi != nil {
+			if !gpu.HAMi.Memory.IsZero() {
+				// HAMi gpumem unit is MiB (integer).
+				memMiB := gpu.HAMi.Memory.Value() / (1024 * 1024)
+				container.Resources.Limits[corev1.ResourceName("nvidia.com/gpumem")] = *apiresource.NewQuantity(memMiB, apiresource.DecimalSI)
+			}
+			if gpu.HAMi.Cores > 0 {
+				container.Resources.Limits[corev1.ResourceName("nvidia.com/gpucores")] = *apiresource.NewQuantity(int64(gpu.HAMi.Cores), apiresource.DecimalSI)
+			}
+		}
+	}
 }
 
 func (r *NotebookLabReconciler) reconcileNetworking(ctx context.Context, notebook *labv1alpha1.NotebookLab) error {

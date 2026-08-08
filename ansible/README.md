@@ -1,6 +1,6 @@
 # KubeClass - Notebook Operator Infrastructure (Ansible)
 
-Thư mục này chứa toàn bộ kịch bản Ansible (Playbooks & Roles) để tự động hóa việc xây dựng một cụm Kubernetes (K3s) hỗ trợ GPU mạnh mẽ. Cụm này được thiết kế đặc biệt để chạy **Notebook Operator** với các công nghệ cắt GPU ảo hóa như **HAMi** và chuẩn **DRA (Dynamic Resource Allocation)**.
+Thư mục này chứa toàn bộ kịch bản Ansible (Playbooks & Roles) để tự động hóa việc xây dựng một cụm Kubernetes (K3s) hỗ trợ GPU mạnh mẽ. Cụm này được thiết kế đặc biệt để chạy **Notebook Operator** với công nghệ chia GPU ảo hóa **HAMi Device Plugin** (vGPU sharing) và **NVIDIA MIG Device Plugin** (Multi-Instance GPU).
 
 ## Kiến trúc 5 Phase (Roles)
 
@@ -9,8 +9,17 @@ Quá trình cài đặt được chia nhỏ thành 5 giai đoạn (Phases) chạ
 1. **Phase 1 (NVIDIA Toolkit):** Tự động thêm repo và cài đặt các thư viện `nvidia-container-toolkit` để Kernel hệ điều hành nhận diện được GPU.
 2. **Phase 2 (K3s Master):** Triển khai K3s Server lên Master Node. Khởi tạo API Server.
 3. **Phase 3 (K3s Worker):** Kết nạp (Join) các Worker Nodes vào cụm Master tự động thông qua Token.
-4. **Phase 4 (HAMi Node - CDI):** Sinh ra các file CDI (Container Device Interface) tại `/etc/cdi/` để K3s/Containerd có thể giao tiếp với phần cứng GPU của NVIDIA.
-5. **Phase 5 (HAMi Master):** Triển khai **HAMi-DRA** qua Helm Chart, đồng thời kích hoạt Cert-Manager để xử lý các Webhook chặn và dịch yêu cầu (Mutating Webhook) từ Device Plugin sang chuẩn DRA hiện đại.
+4. **Phase 4 (CDI Node Setup):** Sinh ra file CDI (Container Device Interface) tại `/etc/cdi/nvidia.yaml` để K3s/Containerd có thể giao tiếp với phần cứng GPU của NVIDIA.
+5. **Phase 5 (HAMi Device Plugin):** Triển khai **HAMi** qua Helm Chart ở chế độ Device Plugin thuần. HAMi scheduler + device plugin sẽ expose các extended resources (`nvidia.com/gpu`, `nvidia.com/gpumem`, `nvidia.com/gpucores`) và inject `libvgpu.so` để giới hạn VRAM/Compute cho mỗi container.
+
+### GPU Provisioning Modes
+
+Operator hỗ trợ 2 chế độ chia GPU, cả hai đều dùng **Device Plugin API** (không dùng DRA):
+
+| Mode | Extended Resource | Mô tả |
+|------|------------------|-------|
+| **HAMi** (mặc định) | `nvidia.com/gpu` + `nvidia.com/gpumem` + `nvidia.com/gpucores` | Chia GPU ảo hóa: nhiều container dùng chung 1 GPU vật lý, giới hạn VRAM/Compute |
+| **MIG** | `nvidia.com/mig-<profile>` (vd: `nvidia.com/mig-1g.5gb`) | NVIDIA Multi-Instance GPU: chia GPU thành các partition phần cứng cô lập |
 
 ---
 

@@ -50,13 +50,15 @@ spec:
       operator: "Exists"
       effect: "NoSchedule"
 
-  # Cấu hình GPU (Hỗ trợ HAMi vGPU / MIG)
+  # Cấu hình GPU (Hỗ trợ HAMi vGPU / MIG qua Device Plugin)
   gpu: 
     enable: true
-    type: "hami" 
+    type: "hami"       # "hami" (default) hoặc "mig"
     hami:
       cores: 20       
       memory: "16Gi" 
+    # mig:
+    #   profile: "1g.5gb"  # Cho mode MIG
 
   # Cấu hình lưu trữ linh hoạt (Storage Architecture)
   storage:
@@ -84,7 +86,7 @@ Là kết quả do Controller thu thập từ cụm và cập nhật liên tục
 ```yaml
 status:
   # Trạng thái tổng thể của Notebook:
-  # - Provisioning: Đang cấp phát PVC/Secret/ResourceClaimTemplate/Pod
+  # - Provisioning: Đang cấp phát PVC/Secret/Pod
   # - Running: Pod đang chạy, Security Hardening OK, GPU đã gắn, đã có Access URL
   # - Pausing: Đang trong quá trình tắt Pod để thu hồi tài nguyên GPU/CPU
   # - Paused: Pod đã tắt, GPU đã thu hồi, Workspace PVC giữ nguyên
@@ -154,7 +156,6 @@ Notebook Operator tuân thủ nghiêm ngặt các quy tắc bảo mật **Least 
 | ------------------- | ---- | ---------------------- |
 | **Secret** | `<name>-secret` | Lưu trữ bảo mật token truy cập của JupyterLab. |
 | **PersistentVolumeClaim (PVC)** | `<name>-workspace-pvc` | Cung cấp lưu trữ Workspace bền vững (Read-Write) cho người dùng. |
-| **ResourceClaimTemplate** | `<name>-gpu-template` | Quản lý mẫu tài nguyên GPU cho cơ chế K8s Dynamic Resource Allocation (DRA). |
 | **Deployment** | `<name>` | Quản lý Pod JupyterLab. Hỗ trợ Pause/Resume (`replicas: 0/1`) và tự khôi phục (Auto-healing). |
 | **Service** | `<name>-service` | Phơi bày port 8888 của Jupyter Container nội bộ cluster. |
 | **Ingress** | `<name>-ingress` | Cấp tên miền HTTPS định tuyến từ ngoài Internet vào Service. |
@@ -169,26 +170,27 @@ Mỗi khi nhận sự kiện (Add / Update / Delete) hoặc khi tài nguyên con
 graph TD
     A[K8s Event: Add/Update/Delete] --> B[1. Fetch NotebookLab CR]
     B -->|Không tìm thấy| C[Kết thúc / K8s GC tự thu hồi]
-    B -->|Tồn tại| D[2. Reconcile Secret]
+    B -->|Tồn tại| D[1.5. Reconcile Lifecycle Policies]
     
-    D --> E[3. Reconcile Workspace PVC]
-    E --> F[4. Reconcile GPU ResourceClaimTemplate - DRA]
-    F --> G[5. Reconcile Deployment via client.MergeFrom Patch]
-    G --> H[6. Reconcile Service & Ingress]
-    H --> I[7. Fetch Actual Status & Update Conditions]
-    I --> J[Kết thúc Reconcile]
+    D --> E[2. Reconcile Workspace PVC]
+    E --> F[3. Reconcile Deployment - GPU via Device Plugin]
+    F --> G[4. Reconcile Service & Ingress]
+    G --> H[5. Update Status & Conditions]
+    H --> I[Kết thúc Reconcile]
 ```
 
 ### Các bước điều hòa cụ thể:
 1. **Fetch Instance**: Lấy thông tin mới nhất từ API Server. Nếu CR đã bị xóa, K8s Garbage Collector sẽ dọn dẹp toàn bộ tài nguyên con theo `OwnerReference`.
-2. **Reconcile Secret**: Kiểm tra và tự động sinh ngẫu nhiên Token bảo mật nếu chưa có Secret `<name>-secret`.
-3. **Reconcile Workspace PVC**: Cấp phát PVC Workspace cá nhân nếu chưa tồn tại. **PVC tuyệt đối không bị xóa khi Pause Pod**.
-4. **Reconcile GPU DRA Template**: Nếu GPU enable, khởi tạo/cập nhật `ResourceClaimTemplate` cho K8s DRA Scheduler.
-5. **Reconcile Deployment (Patch)**:
+1.5. **Reconcile Lifecycle**: Kiểm tra Idle Timeout, Max Lifespan, và Auto-Purge policies.
+2. **Reconcile Workspace PVC**: Cấp phát PVC Workspace cá nhân nếu chưa tồn tại. **PVC tuyệt đối không bị xóa khi Pause Pod**.
+3. **Reconcile Deployment (Patch)** — bao gồm GPU injection:
    - Xây dựng PodSpec với đầy đủ PodSecurityContext, ContainerSecurityContext, automountServiceAccountToken = false, volume mounts `/tmp`.
+   - **GPU injection qua Device Plugin**: Dựa vào `gpu.type`, inject extended resource limits vào container:
+     - `hami` → `nvidia.com/gpu=1` + `nvidia.com/gpumem` + `nvidia.com/gpucores`
+     - `mig` → `nvidia.com/mig-<profile>=1`
    - Áp dụng kỹ thuật `client.MergeFrom` để thực hiện `r.Patch` (thay vì `r.Update`) giúp cập nhật an toàn `Replicas` & `Template` mà không vi phạm lỗi *immutable fields* trên API Server.
-6. **Reconcile Networking**: Cấu hình `Service` (port 8888) và `Ingress` định tuyến domain.
-7. **Status Update & Error Handling**: Cập nhật `Status.Phase` (Provisioning, Running, Paused, Failed) và ghi nhận lỗi vào `Conditions` theo chuẩn Kubernetes.
+4. **Reconcile Networking**: Cấu hình `Service` (port 8888) và `Ingress` định tuyến domain.
+5. **Status Update & Error Handling**: Cập nhật `Status.Phase` (Provisioning, Running, Paused, Failed) và ghi nhận lỗi vào `Conditions` theo chuẩn Kubernetes.
 
 ---
 
@@ -198,14 +200,217 @@ graph TD
 - **Vấn đề**: Trong Kubernetes, một số trường của Deployment Spec là bất biến (*Immutable*) sau khi khởi tạo (ví dụ: `LabelSelector`). Việc gán đè `existingDeploy.Spec = deploy.Spec` rồi gọi `r.Update` dễ gây lỗi `Update failed: field is immutable` do API Server tự động mutate các default values.
 - **Giải pháp**: Luôn dùng bản vá `patch := client.MergeFrom(existingDeploy.DeepCopy())` và chỉ cập nhật các trường biến động (`existingDeploy.Spec.Replicas = deploy.Spec.Replicas`, `existingDeploy.Spec.Template = deploy.Spec.Template`) rồi gọi `r.Patch`.
 
-### 📌 2. Độc lập ResourceClaim trong Deployment (DRA Problem)
-- **Vấn đề**: Tạo trực tiếp `ResourceClaim` độc lập và gắn vào Deployment sẽ khiến Pod kẹt trạng thái `Pending` khi rollout/scale vì `ResourceClaim` trực tiếp chỉ gắn được với 1 Pod duy nhất tại một thời điểm (Single Pod Binding).
-- **Giải pháp**: Phải sử dụng `ResourceClaimTemplate`. K8s Scheduler sẽ tự động sinh ra một `ResourceClaim` riêng biệt tương ứng với từng instance Pod được tạo ra bởi Deployment Controller.
-
-### 📌 3. Phân quyền File System khi chạy Non-Root
+### 📌 2. Phân quyền File System khi chạy Non-Root
 - **Vấn đề**: Khi ép `runAsNonRoot: true` và `runAsUser: 1000`, container không có quyền tạo file tạm tại `/tmp` trên root filesystem.
 - **Giải pháp**: Luôn mount volume `emptyDir` vào `/tmp` (cho phép tùy chỉnh `storage.tmp.sizeLimit` và `storage.tmp.mountPath`) và cấu hình `fsGroup: 1000` trong `PodSecurityContext`.
 
-### 📌 4. Tự phục hồi tự động (Auto-healing)
-- Controller đăng ký theo dõi tất cả tài nguyên con trong `SetupWithManager` via `.Owns()` (Secret, PVC, ResourceClaimTemplate, Deployment, Service, Ingress).
+### 📌 3. Tự phục hồi tự động (Auto-healing)
+- Controller đăng ký theo dõi tất cả tài nguyên con trong `SetupWithManager` via `.Owns()` (Secret, PVC, Deployment, Service, Ingress).
 - Nếu bất kỳ tài nguyên con nào bị người quản trị xóa nhầm bằng `kubectl delete`, Operator sẽ lập tức nhận được Event và tái tạo lại tài nguyên đó ngay lập tức mà không làm gián đoạn hệ thống.
+
+### 📌 4. GPU Security khi dùng Device Plugin
+- **Vấn đề**: Khi GPU enabled, NVIDIA runtime cần inject device nodes vào container, yêu cầu `allowPrivilegeEscalation: true`.
+- **Giải pháp**: Controller tự động nới lỏng `SecurityContext` cho GPU containers (bỏ `allowPrivilegeEscalation: false` và `capabilities.drop: ALL`) trong khi vẫn giữ `runAsNonRoot` và `fsGroup`.
+
+### 📌 5. Token Format cho Production
+- **Hiện tại**: Token được sinh theo pattern `<name>-token-sec` (đủ cho dev/test).
+- **Production (Web)**: Khi tích hợp với Backend/Frontend, token nên được sinh theo format `<userId>-<notebookName>` để đảm bảo tính duy nhất và có thể audit theo user. Backend service sẽ truyền thông tin này qua labels `UserID` trên CR.
+
+---
+
+## 6. Tài nguyên được sinh ra từ CRD (Generated Resources)
+
+Khi tạo 1 `NotebookLab` CR, Controller reconcile và sinh ra **5 tài nguyên K8s** con, tất cả đều có `OwnerReference` trỏ về CR gốc:
+
+```mermaid
+graph TD
+    CR["NotebookLab CR<br/><i>my-notebook</i>"] -->|OwnerRef| Secret
+    CR -->|OwnerRef| PVC
+    CR -->|OwnerRef| Deploy
+    CR -->|OwnerRef| Svc
+    CR -->|OwnerRef| Ing
+
+    Secret["Secret<br/><b>my-notebook-secret</b><br/>token: ..."]
+    PVC["PersistentVolumeClaim<br/><b>my-notebook-workspace</b><br/>size: 10Gi"]
+    Deploy["Deployment<br/><b>my-notebook</b><br/>replicas: 1"]
+    Svc["Service<br/><b>my-notebook-svc</b><br/>port: 8888"]
+    Ing["Ingress<br/><b>my-notebook-ingress</b><br/>host: my-notebook.local"]
+
+    Deploy --> Pod["Pod - from template"]
+    Pod --> C1["Container: jupyter<br/>image: base-image:latest"]
+    Pod --> Vol1["Volume: workspace → PVC"]
+    Pod --> Vol2["Volume: tmp → emptyDir"]
+
+    C1 -->|"GPU resources<br/>injected by controller"| GPU["nvidia.com/gpu: 1<br/>nvidia.com/gpumem: 3072<br/>nvidia.com/gpucores: 50"]
+```
+
+### 6.1. Secret — `<name>-secret`
+
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: my-notebook-secret          # pattern: <name>-secret
+  namespace: default
+  ownerReferences: [NotebookLab/my-notebook]
+stringData:
+  token: "my-notebook-token-sec"    # pattern: <name>-token-sec
+  # Production: nên đổi thành <userId>-<notebookName> khi tích hợp web
+```
+
+> Dùng để inject `JUPYTER_TOKEN` env var vào container qua `SecretKeyRef`.
+
+### 6.2. PersistentVolumeClaim — `<name>-workspace`
+
+```yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: my-notebook-workspace       # pattern: <name>-workspace
+  namespace: default
+  ownerReferences: [NotebookLab/my-notebook]
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local-path       # từ spec.storage.workspace.storageClassName
+  resources:
+    requests:
+      storage: 10Gi                  # từ spec.storage.workspace.size
+```
+
+> **Không bị xóa khi pause** (replicas=0). Chỉ bị xóa khi auto-purge hoặc xóa CR.
+
+### 6.3. Deployment — `<name>`
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-notebook                  # pattern: <name>
+  namespace: default
+  ownerReferences: [NotebookLab/my-notebook]
+spec:
+  replicas: 1                        # từ spec.replicas (0 = paused)
+  selector:
+    matchLabels:
+      app: my-notebook
+  template:
+    metadata:
+      labels:
+        app: my-notebook
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: jupyter
+          image: ghcr.io/ngtukien/notebook-operator/base-image:latest
+          securityContext:            # Nới lỏng cho GPU container
+            allowPrivilegeEscalation: true
+          env:
+            - name: JUPYTER_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: my-notebook-secret
+                  key: token
+          resources:
+            requests:
+              cpu: "2"
+              memory: 4Gi
+            limits:
+              cpu: "4"
+              memory: 8Gi
+              # ↓↓↓ INJECTED BY CONTROLLER (Device Plugin) ↓↓↓
+              nvidia.com/gpu: "1"
+              nvidia.com/gpumem: "3072"     # 3Gi = 3072 MiB
+              nvidia.com/gpucores: "50"
+          volumeMounts:
+            - name: workspace
+              mountPath: /workspace
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: workspace
+          persistentVolumeClaim:
+            claimName: my-notebook-workspace
+        - name: tmp
+          emptyDir:
+            sizeLimit: 2Gi
+      nodeSelector:
+        gpu: "on"
+      tolerations:
+        - key: nvidia.com/gpu
+          operator: Exists
+          effect: NoSchedule
+```
+
+> GPU resource limits (`nvidia.com/gpu`, `nvidia.com/gpumem`, `nvidia.com/gpucores`) được **controller inject tự động** dựa trên `spec.gpu`. User **không cần** set chúng trong `spec.resources.limits`.
+
+### 6.4. Service — `<name>-svc`
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: my-notebook-svc              # pattern: <name>-svc
+  namespace: default
+  ownerReferences: [NotebookLab/my-notebook]
+spec:
+  selector:
+    app: my-notebook
+  ports:
+    - name: http
+      port: 8888
+```
+
+### 6.5. Ingress — `<name>-ingress`
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: my-notebook-ingress          # pattern: <name>-ingress
+  namespace: default
+  ownerReferences: [NotebookLab/my-notebook]
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/websocket-services: my-notebook-svc
+spec:
+  rules:
+    - host: my-notebook.local        # pattern: <name>.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: my-notebook-svc
+                port:
+                  number: 8888
+```
+
+### 6.6. GPU Resource Injection (Device Plugin)
+
+Tùy vào `spec.gpu.type`, controller inject các extended resources khác nhau vào `container.resources.limits`:
+
+| `gpu.type` | Resources được inject | Nguồn cấu hình |
+|---|---|---|
+| `hami` (default) | `nvidia.com/gpu: 1` | Luôn luôn |
+| | `nvidia.com/gpumem: <MiB>` | `gpu.hami.memory` (3Gi → 3072) |
+| | `nvidia.com/gpucores: <N>` | `gpu.hami.cores` |
+| `mig` | `nvidia.com/mig-<profile>: 1` | `gpu.mig.profile` (vd: `1g.5gb`) |
+
+### 6.7. Naming Convention
+
+| Resource | Name Pattern | Ví dụ (name=`my-notebook`) |
+|---|---|---|
+| Secret | `<name>-secret` | `my-notebook-secret` |
+| PVC | `<name>-workspace` | `my-notebook-workspace` |
+| Deployment | `<name>` | `my-notebook` |
+| Service | `<name>-svc` | `my-notebook-svc` |
+| Ingress | `<name>-ingress` | `my-notebook-ingress` |
+| AccessURL | `https://<name>.local/lab?token=<token>` | `https://my-notebook.local/lab?token=...` |

@@ -7,9 +7,9 @@
     ╚═══╝  ╚═════╝    ╚═╝       ╚══════╝ ╚═════╝ ╚══════╝ ╚═════╝ 
                       VIETTEL DIGITAL TALENT 2026
 ====================================================================
- Welcome to the Secure GPU Workspace!
+ Welcome to the Secure Notebook Lab!
 
- [ System ] GPU Virtualization (HAMi)
+ [ System ] GPU Virtualization (HAMi / MIG Device Plugin)
  [ SecOps ] Zero-Trust Architecture (Non-root, No SSH)
  [ Engine ] NVIDIA CUDA 12.4 + AI Toolkit
 ====================================================================

@@ -1,206 +1,211 @@
-# 🚀 Notebook Operator — Cloud-Native AI/ML & NotebookLab Platform
+# Notebook Operator
 
-![Kubebuilder](https://img.shields.io/badge/Kubebuilder-v4-blue.svg) ![Kubernetes](https://img.shields.io/badge/Kubernetes-v1.32+-326ce5.svg) ![Go Version](https://img.shields.io/badge/Go-v1.26+-00ADD8.svg) ![PyTorch](https://img.shields.io/badge/PyTorch-v2.6.0-EE4C2C.svg) ![TensorFlow](https://img.shields.io/badge/TensorFlow-v2.18.0-FF6F00.svg)
+[![Kubernetes](https://img.shields.io/badge/Kubernetes-v1.34+-326ce5?logo=kubernetes&logoColor=white)](https://kubernetes.io)
+[![Go](https://img.shields.io/badge/Go-v1.26+-00ADD8?logo=go&logoColor=white)](https://go.dev)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
-**Notebook Operator** là bộ điều khiển Kubernetes Operator tiêu chuẩn doanh nghiệp, chuyên tự động hóa việc khởi tạo, quản trị vòng đời và phân phối môi trường phòng thí nghiệm AI/ML & Jupyter Notebook (Cloud-Native Interactive Lab Platform) trên hạ tầng điện toán đám mây.
+Kubernetes Operator quản lý vòng đời môi trường JupyterLab trên hạ tầng GPU, phục vụ đào tạo AI/ML và nghiên cứu khoa học dữ liệu.
 
-Hệ thống được thiết kế tối ưu cho các khóa học Trí tuệ nhân tạo (AI/ML), Khai phá dữ liệu (Data Science) và Học máy tại các Trường đại học cũng như Doanh nghiệp, hỗ trợ tăng tốc phần cứng **NVIDIA GPU (HAMi vGPU / MIG / DRA)**, bảo mật siết chặt **Pod Hardening (Non-Root)**, lưu trữ dữ liệu bền vững và tự động thu hồi tài nguyên thông minh (**Pause/Resume & Idle Timeout**).
+Operator tự động hóa toàn bộ quy trình: cấp phát workspace, phân bổ GPU (HAMi vGPU / MIG qua Device Plugin), expose notebook qua Ingress, và thu hồi tài nguyên khi idle — thông qua một Custom Resource duy nhất: **`NotebookLab`**.
 
----
+## Tính Năng Chính
 
-## 🏛️ Kiến Trúc Hệ Thống & Tài Nguyên Tùy Chỉnh (CRDs)
-
-Hệ thống vận hành dựa trên Custom Resource Definition: **`NotebookLab`** thuộc API Group `lab.ngtukien.id.vn/v1alpha1`:
-
-```mermaid
-graph TD
-    User([🧑‍💻 Sinh viên / AI Engineer / Giảng viên]) -->|Gõ YAML hoặc qua API Web| Operator[⚙️ Notebook Operator]
-    Operator -->|Quản trị Môi trường Lab| NL[📓 NotebookLab CRD]
-
-    subgraph "Kubernetes Namespace"
-        NL -->|1. Cấp phát Token Bảo mật| SEC[🔐 Secret<br/>name-secret]
-        NL -->|2. Cấp phát Workspace Bền vững| PVC[💾 PersistentVolumeClaim<br/>Read-Write Workspace PVC]
-        NL -->|3. Tạo Mẫu GPU Dynamic Allocation| RCT[🎮 ResourceClaimTemplate<br/>HAMi vGPU / K8s DRA]
-        NL -->|4. Khởi tạo & Scale Deployment| DEP[🚀 Deployment<br/>JupyterLab Pod - Non-Root]
-        NL -->|5. Định tuyến Cổng Cụm| SVC[🌐 ClusterIP Service<br/>Port 8888]
-        NL -->|6. Cấp Domain & SSL WSS| ING[🔒 Ingress<br/>Cert-Manager & WebSocket]
-    end
-
-    DEP -->|Mount| PVC
-    DEP -->|Mount Ephemeral /tmp| TMP[(📁 emptyDir /tmp)]
-    DEP -->|Yêu cầu vGPU| RCT
-```
-
-### Key Features của `NotebookLab`
-
-1. **Quản lý Vòng đời & Tự động Tắt máy (Lifecycle & Auto-Scaling):**
-   * **Tạm dừng / Tiếp tục (Pause/Resume):** Khi đặt `replicas: 0`, Operator lập tức giải phóng hoàn toàn Pod và tài nguyên GPU/CPU đắt đỏ về cho cụm, nhưng **giữ nguyên 100% dữ liệu Workspace PVC** của người dùng.
-   * **Tự động thu hồi theo thời gian rảnh (Idle Timeout):** Tự động phát hiện khi Notebook không chạy mã nguồn quá khoảng thời gian cấu hình (`idleTimeoutMinutes`) để đưa `replicas` về `0`.
-   * **Thời hạn tối đa (Max Lifespan):** Áp đặt giới hạn thời gian chạy tối đa (`maxLifespanHours`) nhằm tránh lãng phí GPU.
-
-2. **Tăng tốc Phần cứng GPU Linh hoạt (AI/ML Hardware Acceleration):**
-   * Tích hợp **HAMi vGPU Scheduler** cho phép phân chia nhỏ vGPU (Cores % và Memory MB/GB) giúp nhiều sinh viên chia sẻ chung 1 card GPU vật lý.
-   * Hỗ trợ chuẩn mới **Kubernetes Dynamic Resource Allocation (DRA)** thông qua `ResourceClaimTemplate`.
-
-3. **Bảo mật Siết chặt (Pod Security Hardening):**
-   * **Non-Root Execution:** Bắt buộc container chạy dưới UID `1000` (`runAsNonRoot: true`), tước toàn bộ Linux Capabilities (`drop: ["ALL"]`) và cấm leo quyền (`allowPrivilegeEscalation: false`).
-   * **Vô hiệu hóa ServiceAccount Token:** Đặt `automountServiceAccountToken: false` để triệt tiêu nguy cơ bị chiếm quyền truy vấn K8s API Server từ bên trong Notebook.
-   * **Ghi tạm An toàn với Ephemeral `/tmp`:** Tự động mount ổ `emptyDir` vào `/tmp` giúp các thư viện Python/JupyterLab ghi cache trơn tru ở chế độ Non-Root.
+- **GPU Scheduling qua Device Plugin** — Hỗ trợ đồng thời HAMi vGPU sharing (`nvidia.com/gpu` + `nvidia.com/gpumem` + `nvidia.com/gpucores`) và NVIDIA MIG (`nvidia.com/mig-<profile>`) qua cơ chế Extended Resources tiêu chuẩn.
+- **Lifecycle Automation** — Idle timeout, max lifespan, và auto-purge. Khi pause (`replicas: 0`), GPU được trả lại cluster nhưng dữ liệu workspace được bảo toàn.
+- **Pod Security Hardening** — Non-root (UID 1000), drop all capabilities, `automountServiceAccountToken: false`, ephemeral `/tmp` qua emptyDir.
+- **Zero-Touch Infrastructure** — Ansible playbook tự động cài đặt K3s + NVIDIA Toolkit + HAMi Device Plugin trên bare-metal.
 
 ---
 
-## 🏗️ Hướng Dẫn Khởi Tạo Cụm & Cấu Hình GPU/HAMi (Ansible Engine)
+## Kiến Trúc
 
-Hệ thống trang bị bộ động cơ tự động hóa Ansible giúp biến các máy chủ thô thành cụm K3s/Kubeadm sẵn sàng chạy GPU và HAMi vGPU.
-
-### Cấu Trúc Thư Mục Ansible (`ansible/`)
-```text
-ansible/
-├── ansible.cfg                    # Cấu hình Ansible tối ưu Pipelining & SSH
-├── cluster.yml                    # 🚀 Playbook cài đặt toàn diện Cụm K3s & GPU Engine
-├── k3s.yaml                       # Playbook khởi tạo nhanh K3s
-├── README.md                      # 📜 Tài liệu hướng dẫn Ansible chi tiết
-├── inventory/                     # Quản lý kho máy chủ (Inventory)
-│   └── lab-cluster/               
-│       ├── hosts.ini              # Danh sách IP Master, Worker & GPU Nodes
-│       └── group_vars/            # Biến cấu hình (NVIDIA Toolkit, HAMi, K3s version)
-├── molecule/                      # Khung kiểm thử tự động cho Ansible Roles
-└── roles/                         # Bộ Roles (common, containerd, k3s, nvidia-container-toolkit, hami-node)
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    NotebookLab CR (YAML)                    │
+│  spec: image, resources, gpu, storage, lifecycle            │
+└──────────────────────────┬──────────────────────────────────┘
+                           │ Reconcile
+              ┌────────────▼─────────────┐
+              │   Notebook Operator      │
+              │   (controller-manager)   │
+              └────────────┬─────────────┘
+                           │ Creates & Manages
+         ┌─────────┬───────┼───────┬──────────┐
+         ▼         ▼       ▼       ▼          ▼
+      Secret     PVC   Deployment Service   Ingress
+    (JWT Token) (workspace) │     (8888)  (*.local)
+                           │
+                    ┌──────▼──────┐
+                    │ Device Plugin│
+                    │  Resources  │
+                    └──────┬──────┘
+                           │
+                ┌──────────▼──────────┐
+                │  HAMi / MIG Plugin  │
+                │  nvidia.com/gpu     │
+                │  nvidia.com/gpumem  │
+                │  nvidia.com/mig-*   │
+                └─────────────────────┘
 ```
 
-### Cách Thực Thi Ansible
-```bash
-cd ansible
-# Cài đặt toàn bộ cụm K3s kèm GPU NVIDIA & HAMi:
-ansible-playbook cluster.yml -i inventory/lab-cluster/hosts.ini
-```
+### Tài Nguyên Được Quản Lý
 
-#### ⚡ Thực thi Zero-Clone (Không cần git clone):
-```bash
-curl -fsSL https://raw.githubusercontent.com/ngtukien/notebook-operator/main/ansible/cluster.yml | ansible-playbook -i "localhost," -c local /dev/stdin
-```
+| Resource | Mục đích |
+|----------|----------|
+| `Secret` | Token xác thực JupyterLab |
+| `PVC` | Workspace bền vững (giữ khi pause) |
+| `Deployment` | Pod JupyterLab (non-root, hardened) |
+| `Service` | Expose port 8888 |
+| `Ingress` | Domain + WebSocket proxy |
+
+### GPU Providers
+
+| Provider | Extended Resources | Yêu cầu phần cứng |
+|----------|-------------------|-------------------|
+| `hami` (mặc định) | `nvidia.com/gpu` + `nvidia.com/gpumem` + `nvidia.com/gpucores` | Mọi NVIDIA GPU |
+| `mig` | `nvidia.com/mig-<profile>` (vd: `nvidia.com/mig-1g.5gb`) | A100, A30, H100+ |
+
+Cả hai đều hoạt động qua cơ chế Device Plugin, không cần DRA.
 
 ---
 
-## 🛠️ Hướng Dẫn Phát Triển & Triển Khai Operator
+## Yêu Cầu Hệ Thống
 
-### 1. Yêu cầu Tiền quyết (Prerequisites)
-* **Go:** `v1.26.0+`
-* **Docker:** `17.03+`
-* **Kubernetes Cluster:** `v1.32+` (K3s, Kubeadm hoặc Kind/Envtest)
-* **Nvidia Container Toolkit / HAMi vGPU** (Nếu dùng tính năng GPU)
+### Phần Cứng
 
-### 2. Kiểm Thử & Linting Mã Nguồn
+| Thành phần | Tối thiểu | Khuyến nghị |
+|------------|-----------|-------------|
+| CPU | 4 cores | 8+ cores |
+| RAM | 8 GB | 16+ GB |
+| Disk | 50 GB SSD | 100+ GB SSD |
+| GPU | NVIDIA với driver ≥ 535 | NVIDIA Ampere+ (A100, RTX 3090) |
+| OS | Ubuntu 22.04 / 24.04 LTS | Ubuntu 24.04 LTS |
+
+### Phần Mềm
+
+| Dependency | Version | Ghi chú |
+|------------|---------|---------|
+| Kubernetes (K3s) | ≥ 1.34 | Không cần DRA feature gate |
+| NVIDIA Driver | ≥ 535 | Cài sẵn trên host |
+| NVIDIA Container Toolkit | latest | Ansible tự cài |
+| Helm | ≥ 3.x | Cài HAMi Device Plugin |
+
+---
+
+## Hướng Dẫn Cài Đặt
+
+### Bước 1 — Chuẩn Bị Cụm K3s + GPU
+
+Chạy Ansible playbook để tự động cài đặt K3s v1.34, NVIDIA Container Toolkit, CDI, và HAMi Device Plugin:
+
+**Cách A: Dùng playbook single-file từ GitHub Releases** (không cần clone repo)
 ```bash
-# Sửa lỗi lint và định dạng code chuẩn:
-make lint-fix
+# Tải file phát hành
+curl -LO https://github.com/ngtukien/notebook-operator/releases/latest/download/cluster-setup.yml
 
-# Sinh lại CRD Manifests và DeepCopy code:
-make manifests generate
-
-# Kích hoạt Unit test (Envtest):
-make test
-
-# Kích hoạt E2E test trên Cụm Kind:
-make test-e2e
+# Chỉnh sửa inventory trong file nếu cần, sau đó chạy:
+ansible-playbook cluster-setup.yml -i "localhost," -c local -K
 ```
 
-### 3. Triển khai Operator lên Cụm
+**Cách B: Clone repo rồi chạy**
+```bash
+git clone https://github.com/ngtukien/notebook-operator.git
+cd notebook-operator/ansible
 
-#### Cách 1: Triển khai Siêu Tốc qua GitHub Releases (Single-Command Install)
-Dành cho Quản trị viên cụm (Admin), tải file phát hành chính thức `install.yaml`:
+# Chỉnh inventory nếu cần
+vim inventory/hosts.ini
+
+# Cài đặt cụm
+ansible-playbook cluster.yml -K
+```
+
+Playbook thực hiện 5 phase tự động:
+
+| Phase | Role | Mô tả |
+|-------|------|--------|
+| 1 | `nvidia` | Cài NVIDIA Container Toolkit |
+| 2 | `k3s-master` | Cài K3s v1.34 (standard config, không cần DRA feature gates) |
+| 3 | `k3s-worker` | Join worker nodes (bỏ qua nếu single-node) |
+| 4 | `hami-node` | Sinh CDI spec cho GPU |
+| 5 | `hami-master` | Cài HAMi Device Plugin + RuntimeClass |
+
+### Bước 2 — Cài Đặt Operator
+
+**Cách A: One-command install từ GitHub Releases**
 ```bash
 kubectl apply -f https://github.com/ngtukien/notebook-operator/releases/latest/download/install.yaml
 ```
 
-#### Cách 2: Triển khai dành cho Nhà Phát Triển (Developer Mode)
+**Cách B: Cho nhà phát triển**
 ```bash
-# Step 1: Build & Push Docker Image của Operator
-export IMG="ghcr.io/ngtukien/notebook-operator:v1.0.0"
+# Build & push image
+export IMG="ghcr.io/ngtukien/notebook-operator:latest"
 make docker-build docker-push IMG=$IMG
 
-# Step 2: Apply CRDs và Deploy Controller Manager
-make install
+# Deploy lên cluster
+make install   # Cài CRDs
 make deploy IMG=$IMG
 ```
 
----
-
-## 📦 Ví Dụ Khai Báo `NotebookLab` (Quickstart Sample)
-
-Tạo file `sample-notebooklab.yaml`:
+### Bước 3 — Tạo Notebook
 
 ```yaml
 apiVersion: lab.ngtukien.id.vn/v1alpha1
 kind: NotebookLab
 metadata:
-  name: jupyter-ai-lab01
+  name: my-notebook
   namespace: default
-  labels:
-    student_id: "sv-2026-88"
-    course: "deep-learning"
 spec:
-  replicas: 1                             # 1 = Running, 0 = Paused (Thu hồi GPU, giữ PVC)
-  image: "jupyter/scipy-notebook:latest"  # Image JupyterLab
-  
-  # Cấu hình tự động tắt máy
-  lifecycle:
-    idleTimeoutMinutes: 60                # Tự động pause sau 60 phút không tương tác
-    maxLifespanHours: 12                  # Tự động tắt sau 12 tiếng
-
-  # Giới hạn tài nguyên CPU & RAM
+  image: ghcr.io/ngtukien/notebook-operator/base-image:latest
   resources:
     requests:
       cpu: "2"
-      memory: "4Gi"
+      memory: 4Gi
     limits:
       cpu: "4"
-      memory: "8Gi"
-
-  # Tăng tốc GPU với HAMi vGPU
+      memory: 8Gi
   gpu:
     enable: true
-    type: "hami"
+    type: hami
     hami:
-      cores: 20                           # Cấp 20% sức mạnh tính toán của 1 core GPU
-      memory: "8Gi"                       # Cấp 8GB VRAM
-
-  # Lưu trữ Dữ liệu & Thư mục Tạm
+      cores: 50
+      memory: 3Gi
   storage:
     workspace:
-      size: "20Gi"
-      storageClassName: "local-path"      # PVC Workspace không bị xóa khi Pause
-      mountPath: "/workspace"
+      size: 10Gi
+      storageClassName: local-path
+      mountPath: /workspace
     tmp:
-      sizeLimit: "5Gi"
-      mountPath: "/tmp"
-    datasets:
-      - name: "shared-mnist"
-        pvcName: "mnist-dataset-pvc"
-        mountPath: "/datasets/mnist"
+      sizeLimit: 2Gi
+  lifecycle:
+    idleTimeoutMinutes: 60
+    maxLifespanHours: 8
+    purgeAfterInactiveDays: 7
+  nodeSelector:
+    gpu: "on"
 ```
 
-Áp dụng lên cụm: `kubectl apply -f sample-notebooklab.yaml`
-
----
-
-## 🔍 Trạng Thái & Báo Cáo Quan Sát (Observability)
-
-Kiểm tra trạng thái các Notebook đang chạy trên cụm:
 ```bash
-kubectl get notebooklab -A -o wide
+kubectl apply -f config/samples/lab_v1alpha1_notebooklab.yaml
+
+# Kiểm tra trạng thái
+kubectl get notebooklab
 ```
 
-### Các Phase Trạng Thái (`Status.Phase`):
-* **`Provisioning`**: Đang cấp phát PVC, Secret, ResourceClaimTemplate và Pod.
-* **`Running`**: Pod đã khởi tạo thành công, Security Hardening OK, đã gắn GPU và có Access URL.
-* **`Pausing`**: Đang trong quá trình thu hồi Pod để trả GPU về cho cụm.
-* **`Paused`**: Pod đã tắt hoàn toàn, GPU đã thu hồi, Workspace PVC được bảo lưu an toàn.
-* **`Failed`**: Lỗi cấp phát (Hết tài nguyên cụm, sai cấu hình storage/image...).
+### Trạng Thái Vòng Đời
+
+| Phase | Ý nghĩa |
+|-------|---------|
+| `Provisioning` | Đang tạo PVC, Secret, Deployment |
+| `Running` | Pod ready, GPU attached, có AccessURL |
+| `Pausing` | Đang thu hồi Pod |
+| `Paused` | GPU trả lại cluster, workspace PVC giữ nguyên |
+| `Failed` | Lỗi (hết tài nguyên, sai config) |
 
 ---
 
-## 📜 Bản Quyền & Giấy Phép (License)
+## License
 
-*Phát triển bởi **Nguyễn Tự Kiên** (2026).*  
-*Được phát hành dưới các điều khoản của **[Apache License, Version 2.0](LICENSE)**.*
+Apache License 2.0 — Xem [LICENSE](LICENSE).
+
+*Phát triển bởi Nguyễn Tự Kiên (2026).*

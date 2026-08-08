@@ -1,6 +1,6 @@
 ---
 # ==============================================================================
-# UNIFIED PLAYBOOK: TRIỂN KHAI CỤM K3S + GPU (HAMi / DRA)
+# UNIFIED PLAYBOOK: TRIỂN KHAI CỤM K3S + GPU (HAMi Device Plugin / MIG)
 # ==============================================================================
 # Mặc định: Triển khai toàn bộ cụm
 #   ansible-playbook cluster.yml
@@ -34,9 +34,9 @@
     - role: hami-node
       tags: ['hami', 'cdi', 'node-setup']
 
-- name: Phase 5 - Triển khai HAMi Core & RuntimeClass trên Master
+- name: Phase 5 - Triển khai HAMi Device Plugin trên Master
   hosts: master
   become: true
   roles:
     - role: hami-master
-      tags: ['hami', 'helm', 'runtime-class']
+      tags: ['hami', 'helm', 'device-plugin']

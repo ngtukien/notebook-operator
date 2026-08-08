@@ -1,0 +1,3 @@
+[submodule ".agent/skills/kubernetes-skill"]
+	path = .agent/skills/kubernetes-skill
+	url = git@github.com:LukasNiessen/kubernetes-skill.git

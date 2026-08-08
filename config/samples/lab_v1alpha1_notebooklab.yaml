@@ -18,13 +18,17 @@ spec:
       cpu: "4"
       memory: 8Gi
 
-  # --- GPU (HAMi DRA) ---
+  # --- GPU (Device Plugin) ---
+  # type: "hami" → HAMi vGPU sharing (nvidia.com/gpu + gpumem + gpucores)
+  # type: "mig"  → NVIDIA MIG partitions (nvidia.com/mig-<profile>)
   gpu:
     enable: true
-    type: hami-core-gpu.project-hami.io  # DeviceClass name từ HAMi
+    type: hami
     hami:
       cores: 50    # 50% GPU cores
       memory: 3Gi  # 3Gi VRAM
+    # mig:
+    #   profile: "1g.5gb"  # Uncomment cho MIG mode
 
   # --- Storage ---
   storage:
