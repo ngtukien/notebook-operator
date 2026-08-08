@@ -498,7 +498,9 @@ func (r *NotebookLabReconciler) reconcileJupyterDeployment(ctx context.Context, 
 		return r.Create(ctx, deploy)
 	} else if err == nil {
 		patch := client.MergeFrom(existingDeploy.DeepCopy())
+		existingDeploy.Labels = deploy.Labels
 		existingDeploy.Spec.Replicas = deploy.Spec.Replicas
+		existingDeploy.Spec.Strategy = deploy.Spec.Strategy
 		existingDeploy.Spec.Template = deploy.Spec.Template
 		return r.Patch(ctx, existingDeploy, patch)
 	}
