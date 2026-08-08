@@ -19,6 +19,7 @@
     - k3s_version_check.rc == 0
     - "'v1.34' not in k3s_version_check.stdout"
   failed_when: false
+  changed_when: true
 
 
 - name: Ensure K3s config directories exist
