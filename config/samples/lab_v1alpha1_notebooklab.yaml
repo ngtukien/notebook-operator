@@ -26,7 +26,7 @@ spec:
     type: hami
     hami:
       cores: 50    # 50% GPU cores
-      memory: 3Gi  # 3Gi VRAM
+      memory: 2Gi  # 2Gi VRAM
     # mig:
     #   profile: "1g.5gb"  # Uncomment cho MIG mode
 

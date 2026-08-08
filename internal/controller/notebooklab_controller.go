@@ -472,6 +472,9 @@ func (r *NotebookLabReconciler) reconcileJupyterDeployment(ctx context.Context, 
 		},
 		Spec: appsv1.DeploymentSpec{
 			Replicas: &replicas,
+			Strategy: appsv1.DeploymentStrategy{
+				Type: appsv1.RecreateDeploymentStrategyType,
+			},
 			Selector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{appLabelKey: deployName},
 			},
