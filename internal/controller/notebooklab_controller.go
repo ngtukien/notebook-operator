@@ -415,6 +415,14 @@ func (r *NotebookLabReconciler) reconcileJupyterDeployment(ctx context.Context, 
 		}
 	}
 
+	containerResources := *notebook.Spec.Resources.DeepCopy()
+	if containerResources.Limits == nil {
+		containerResources.Limits = make(corev1.ResourceList)
+	}
+	if containerResources.Requests == nil {
+		containerResources.Requests = make(corev1.ResourceList)
+	}
+
 	podSpec := corev1.PodSpec{
 		AutomountServiceAccountToken: &autoMountToken,
 		SecurityContext:              podSecurityContext,
@@ -422,7 +430,8 @@ func (r *NotebookLabReconciler) reconcileJupyterDeployment(ctx context.Context, 
 			{
 				Name:            "jupyter",
 				Image:           notebook.Spec.Image,
-				Resources:       notebook.Spec.Resources,
+				Resources:       containerResources,
+
 				VolumeMounts:    volumeMounts,
 				SecurityContext: containerSecurityContext,
 				Env: []corev1.EnvVar{

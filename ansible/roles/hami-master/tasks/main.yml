@@ -54,11 +54,19 @@
     helm upgrade --install hami hami-charts/hami \
       -n hami-system \
       --create-namespace \
-      --set scheduler.kubeScheduler.enabled=false \
+      --set scheduler.kubeScheduler.enabled=true \
+      --set scheduler.kubeScheduler.image.registry=registry.k8s.io \
+      --set scheduler.kubeScheduler.image.repository=kube-scheduler \
+      --set scheduler.kubeScheduler.image.tag=v1.34.10 \
+      --set scheduler.forceOverwriteDefaultScheduler=true \
+      --set scheduler.leaderElect=false \
+      --set scheduler.replicas=1 \
       --set devicePlugin.runtimeClassName=nvidia
   environment:
     KUBECONFIG: /etc/rancher/k3s/k3s.yaml
   changed_when: false
+
+
 
 - name: Wait for HAMi device plugin to be ready
   ansible.builtin.shell: |
