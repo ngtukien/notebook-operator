@@ -414,3 +414,5 @@ Tùy vào `spec.gpu.type`, controller inject các extended resources khác nhau 
 | Service | `<name>-svc` | `my-notebook-svc` |
 | Ingress | `<name>-ingress` | `my-notebook-ingress` |
 | AccessURL | `https://<name>.local/lab?token=<token>` | `https://my-notebook.local/lab?token=...` |
+
+> The end
