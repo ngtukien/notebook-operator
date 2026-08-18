@@ -208,4 +208,4 @@ kubectl get notebooklab
 
 Apache License 2.0 — Xem [LICENSE](LICENSE).
 
-*Phát triển bởi Nguyễn Tự Kiên (2026).*
+*Phát triển bởi NggThuHa (2026).*
