@@ -132,7 +132,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
 
       # Authenticated pulls avoid Docker Hub's anonymous rate limit, which the
       # systemd base images hit on busy days. Optional: skipped when the secrets
@@ -232,7 +232,7 @@ jobs:
       # vẫn hiện trong job summary.
       - name: Upload Trivy SARIF
         if: ${{ inputs.scan && !cancelled() && github.event.pull_request.head.repo.fork != true }}
-        uses: github/codeql-action/upload-sarif@ff2f1c621b7f889edc0d3c761ac2e6a3f8cdb0dd # v4.37.7
+        uses: github/codeql-action/upload-sarif@db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28 # v4.37.8
         with:
           sarif_file: trivy-results/image-${{ matrix.image }}.sarif
           category: trivy-image-${{ matrix.image }}

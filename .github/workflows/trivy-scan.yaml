@@ -13,7 +13,7 @@ jobs:
     
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       # Bước 1: Quét lỗi cấu hình (Misconfigurations) trong Kubernetes Manifests
       - name: Quét cấu hình Manifest (IaC)
