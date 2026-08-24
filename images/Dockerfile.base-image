@@ -1,6 +1,6 @@
 # Base: CUDA runtime-only (~150MB compressed) — đủ để chạy GPU workload
 # Không dùng -devel (không cần compiler) hay -cudnn (không cần DNN framework)
-FROM nvcr.io/nvidia/cuda:12.4.1-base-ubuntu22.04
+FROM nvcr.io/nvidia/cuda:13.3.1-base-ubuntu22.04
 
 ENV DEBIAN_FRONTEND=noninteractive \
     SHELL=/bin/bash \
