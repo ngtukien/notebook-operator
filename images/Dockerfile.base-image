@@ -1,0 +1,40 @@
+# Base: CUDA runtime-only (~150MB compressed) — đủ để chạy GPU workload
+# Không dùng -devel (không cần compiler) hay -cudnn (không cần DNN framework)
+FROM nvcr.io/nvidia/cuda:12.4.1-base-ubuntu22.04
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    SHELL=/bin/bash \
+    NB_USER=jovyan \
+    NB_UID=1000 \
+    NB_GID=1000 \
+    HOME=/home/jovyan
+
+# Create non-root user (matches operator security context: runAsUser=1000)
+RUN groupadd -g ${NB_GID} ${NB_USER} && \
+    useradd -ms /bin/bash -u ${NB_UID} -g ${NB_GID} ${NB_USER}
+
+# Install Python + OS deps
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 python3-pip python3-venv \
+    git curl tini nvidia-utils-535 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install JupyterLab + basic tools (no CUDA-specific ML libs — dùng Dockerfile.pytorch cho PyTorch)
+RUN pip3 install --no-cache-dir \
+    "jupyterlab==4.*" \
+    numpy pandas scikit-learn matplotlib ipywidgets
+
+# Copy MOTD
+COPY motd /etc/motd
+RUN echo "cat /etc/motd" >> /home/${NB_USER}/.bashrc
+
+# Entrypoint script — expands $JUPYTER_TOKEN at runtime (injected by operator)
+RUN printf '#!/bin/bash\nexec jupyter lab \\\n  --ip=0.0.0.0 \\\n  --port=8888 \\\n  --no-browser \\\n  --ServerApp.token="${JUPYTER_TOKEN}" \\\n  --ServerApp.allow_origin="*" \\\n  --notebook-dir=/workspace\n' \
+    > /usr/local/bin/start-notebook.sh && \
+    chmod +x /usr/local/bin/start-notebook.sh
+
+USER ${NB_USER}
+WORKDIR ${HOME}
+
+ENTRYPOINT ["tini", "--"]
+CMD ["/usr/local/bin/start-notebook.sh"]

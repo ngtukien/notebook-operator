@@ -1,0 +1,167 @@
+name: Build and Push Changed Images
+
+on:
+  push:
+    branches: [ "main" ]
+    tags: [ "*" ]
+    paths:
+      - 'images/**'
+      - '.github/workflows/build-image.yaml'
+  pull_request:
+    branches: [ "main" ]
+    paths:
+      - 'images/**'
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  detect:
+    name: Detect Changed Images
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set matrix of changed images
+        id: set-matrix
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            git fetch origin ${{ github.base_ref }} --depth=1
+            COMPARE_REF="origin/${{ github.base_ref }}"
+          elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            COMPARE_REF=""
+          else
+            if git rev-parse --verify HEAD~1 >/dev/null 2>&1; then
+              COMPARE_REF="HEAD~1"
+            else
+              COMPARE_REF=""
+            fi
+          fi
+
+          ALL_DOCKERFILES=()
+          while IFS= read -r -d '' file; do
+            suffix="${file#images/Dockerfile.}"
+            ALL_DOCKERFILES+=("$suffix")
+          done < <(find images -maxdepth 1 -type f -name "Dockerfile.*" -print0)
+
+          BUILD_ALL=false
+          IMAGES_TO_BUILD=()
+
+          if [ -z "$COMPARE_REF" ]; then
+            BUILD_ALL=true
+          else
+            CHANGED_FILES=$(git diff --name-only --diff-filter=AMR "$COMPARE_REF" -- images/)
+
+            while IFS= read -r line; do
+              if [ -z "$line" ]; then continue; fi
+              if [[ ! "$line" =~ ^images/Dockerfile\..*  ]]; then
+                BUILD_ALL=true
+                break
+              fi
+            done <<< "$CHANGED_FILES"
+
+            if [ "$BUILD_ALL" = "false" ]; then
+              while IFS= read -r line; do
+                if [ -z "$line" ]; then continue; fi
+                if [[ "$line" =~ ^images/Dockerfile\.(.*) ]] && [ -f "$line" ]; then
+                  IMAGES_TO_BUILD+=("${BASH_REMATCH[1]}")
+                fi
+              done <<< "$CHANGED_FILES"
+            fi
+          fi
+
+          if [ "$BUILD_ALL" = "true" ]; then
+            IMAGES_TO_BUILD=("${ALL_DOCKERFILES[@]}")
+          fi
+
+          if [ ${#IMAGES_TO_BUILD[@]} -eq 0 ]; then
+            JSON_MATRIX="[]"
+          else
+            JSON_MATRIX=$(printf '%s\n' "${IMAGES_TO_BUILD[@]}" | sort -u | jq -R . | jq -s -c .)
+          fi
+
+          echo "matrix=${JSON_MATRIX}" >> $GITHUB_OUTPUT
+
+  build-and-push:
+    name: Build & Push Image (${{ matrix.image }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    needs: detect
+    if: ${{ needs.detect.outputs.matrix != '[]' && needs.detect.outputs.matrix != '' }}
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        image: ${{ fromJSON(needs.detect.outputs.matrix) }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login Docker Hub if configured
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          if [ -n "$DOCKERHUB_USERNAME" ] && [ -n "$DOCKERHUB_TOKEN" ]; then
+            echo "$DOCKERHUB_TOKEN" | docker login docker.io -u "$DOCKERHUB_USERNAME" --password-stdin
+          else
+            echo "Docker Hub credentials not configured. Skipping Docker Hub login."
+          fi
+
+      - name: Login GHCR
+        if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' }}
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        run: |
+          REPO_LOWER=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+          DOCKERFILE="./images/Dockerfile.${{ matrix.image }}"
+          
+          IMAGE_NAME=$(echo "${{ matrix.image }}" | tr '[:upper:]' '[:lower:]')
+          BASE_IMAGE="${{ env.REGISTRY }}/${REPO_LOWER}/${IMAGE_NAME}"
+
+          # Nếu image không phải base-image và base-image chưa có sẵn trên GHCR, tự động build base-image trước
+          if [ "${{ matrix.image }}" != "base-image" ] && [ -f "./images/Dockerfile.base-image" ]; then
+            BASE_IMAGE_TAG="${{ env.REGISTRY }}/${REPO_LOWER}/base-image:latest"
+            if ! docker manifest inspect "$BASE_IMAGE_TAG" >/dev/null 2>&1; then
+              echo "Base image $BASE_IMAGE_TAG chưa có trên GHCR, đang build trước..."
+              docker buildx build --file "./images/Dockerfile.base-image" -t "$BASE_IMAGE_TAG" --load ./images
+            fi
+          fi
+
+          TAGS=("-t" "${BASE_IMAGE}:latest")
+
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          TAGS+=("-t" "${BASE_IMAGE}:${SHORT_SHA}")
+
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            TAGS+=("-t" "${BASE_IMAGE}:${{ github.ref_name }}")
+          fi
+
+          if [ "${{ github.event_name }}" == "pull_request" ]; then
+            ACTION="--load"
+          else
+            ACTION="--push"
+          fi
+
+          docker buildx build \
+            --file "$DOCKERFILE" \
+            "${TAGS[@]}" \
+            --cache-from type=gha,scope=${{ matrix.image }} \
+            --cache-to type=gha,mode=max,scope=${{ matrix.image }} \
+            $ACTION \
+            ./images

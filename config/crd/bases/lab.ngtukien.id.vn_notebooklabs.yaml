@@ -1,0 +1,436 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.21.0
+  name: notebooklabs.lab.ngtukien.id.vn
+spec:
+  group: lab.ngtukien.id.vn
+  names:
+    kind: NotebookLab
+    listKind: NotebookLabList
+    plural: notebooklabs
+    singular: notebooklab
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - description: The current phase of the NotebookLab
+      jsonPath: .status.phase
+      name: Phase
+      type: string
+    - description: The active Pod name
+      jsonPath: .status.podName
+      name: Pod
+      type: string
+    - description: The Access URL
+      jsonPath: .status.accessUrl
+      name: URL
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: NotebookLab is the Schema for the notebooklabs API
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: spec defines the desired state of NotebookLab
+            properties:
+              gpu:
+                description: GPU defines the GPU configuration and scheduling parameters.
+                properties:
+                  enable:
+                    default: false
+                    description: Enable specifies whether GPU scheduling should be
+                      requested.
+                    type: boolean
+                  hami:
+                    description: HAMi contains configuration specific to HAMi vGPU.
+                    properties:
+                      cores:
+                        description: Cores specifies the percentage or absolute number
+                          of GPU cores requested.
+                        format: int32
+                        type: integer
+                      memory:
+                        anyOf:
+                        - type: integer
+                        - type: string
+                        description: Memory specifies the amount of vGPU memory requested.
+                        pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                        x-kubernetes-int-or-string: true
+                    type: object
+                  mig:
+                    description: MIG contains configuration specific to NVIDIA MIG.
+                    properties:
+                      profile:
+                        description: Profile specifies the MIG profile to request
+                          (e.g., 1g.5gb).
+                        type: string
+                    type: object
+                  type:
+                    description: Type specifies the GPU provisioner (e.g., hami, mig,
+                      standard).
+                    type: string
+                type: object
+              image:
+                description: Image specifies the Docker image for the Jupyter Notebook.
+                type: string
+              imagePullSecrets:
+                description: ImagePullSecrets specifies the secrets to use for pulling
+                  private images.
+                items:
+                  description: |-
+                    LocalObjectReference contains enough information to let you locate the
+                    referenced object inside the same namespace.
+                  properties:
+                    name:
+                      default: ""
+                      description: |-
+                        Name of the referent.
+                        This field is effectively required, but due to backwards compatibility is
+                        allowed to be empty. Instances of this type with an empty value here are
+                        almost certainly wrong.
+                        More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                      type: string
+                  type: object
+                  x-kubernetes-map-type: atomic
+                type: array
+              lifecycle:
+                description: Lifecycle defines the automated resource reclamation
+                  policy.
+                properties:
+                  idleTimeoutMinutes:
+                    description: IdleTimeoutMinutes defines how long the notebook
+                      can be idle before replicas is set to 0.
+                    format: int32
+                    type: integer
+                  maxLifespanHours:
+                    description: MaxLifespanHours defines the absolute maximum running
+                      time before termination.
+                    format: int32
+                    type: integer
+                  purgeAfterInactiveDays:
+                    description: PurgeAfterInactiveDays specifies consecutive days
+                      of inactivity before permanently purging all resources including
+                      workspace PVC.
+                    format: int32
+                    type: integer
+                type: object
+              nodeSelector:
+                additionalProperties:
+                  type: string
+                description: NodeSelector allows requesting specific hardware types
+                  or node groups.
+                type: object
+              replicas:
+                default: 1
+                description: Replicas defines the desired number of instances. Used
+                  for Pause/Resume. Defaults to 1.
+                format: int32
+                type: integer
+              resources:
+                description: Resources defines the compute resources required by this
+                  notebook.
+                properties:
+                  claims:
+                    description: |-
+                      Claims lists the names of resources, defined in spec.resourceClaims,
+                      that are used by this container.
+
+                      This field depends on the
+                      DynamicResourceAllocation feature gate.
+
+                      This field is immutable. It can only be set for containers.
+                    items:
+                      description: ResourceClaim references one entry in PodSpec.ResourceClaims.
+                      properties:
+                        name:
+                          description: |-
+                            Name must match the name of one entry in pod.spec.resourceClaims of
+                            the Pod where this field is used. It makes that resource available
+                            inside a container.
+                          type: string
+                        request:
+                          description: |-
+                            Request is the name chosen for a request in the referenced claim.
+                            If empty, everything from the claim is made available, otherwise
+                            only the result of this request.
+                          type: string
+                      required:
+                      - name
+                      type: object
+                    type: array
+                    x-kubernetes-list-map-keys:
+                    - name
+                    x-kubernetes-list-type: map
+                  limits:
+                    additionalProperties:
+                      anyOf:
+                      - type: integer
+                      - type: string
+                      pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                      x-kubernetes-int-or-string: true
+                    description: |-
+                      Limits describes the maximum amount of compute resources allowed.
+                      More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+                    type: object
+                  requests:
+                    additionalProperties:
+                      anyOf:
+                      - type: integer
+                      - type: string
+                      pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                      x-kubernetes-int-or-string: true
+                    description: |-
+                      Requests describes the minimum amount of compute resources required.
+                      If Requests is omitted for a container, it defaults to Limits if that is explicitly specified,
+                      otherwise to an implementation-defined value. Requests cannot exceed Limits.
+                      More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+                    type: object
+                type: object
+              storage:
+                description: Storage defines the persistent storage requirements.
+                properties:
+                  datasets:
+                    description: Datasets defines a list of shared Read-Only datasets.
+                    items:
+                      properties:
+                        mountPath:
+                          description: MountPath specifies where to mount the dataset
+                            inside the notebook container.
+                          type: string
+                        name:
+                          description: Name is the display name of the dataset.
+                          type: string
+                        pvcName:
+                          description: PVCName is the name of the existing shared
+                            PVC on the cluster.
+                          type: string
+                      required:
+                      - mountPath
+                      - name
+                      - pvcName
+                      type: object
+                    type: array
+                  tmp:
+                    description: Tmp defines the temporary emptyDir storage for runtime
+                      scratch files.
+                    properties:
+                      mountPath:
+                        default: /tmp
+                        description: MountPath specifies where to mount the temporary
+                          volume inside the container. Defaults to "/tmp".
+                        type: string
+                      sizeLimit:
+                        anyOf:
+                        - type: integer
+                        - type: string
+                        description: SizeLimit specifies the capacity limit of the
+                          temporary /tmp emptyDir volume.
+                        pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                        x-kubernetes-int-or-string: true
+                    type: object
+                  workspace:
+                    description: Workspace defines the personal Read-Write storage.
+                    properties:
+                      mountPath:
+                        default: /workspace
+                        description: MountPath specifies where to mount the workspace
+                          inside the notebook container.
+                        type: string
+                      size:
+                        anyOf:
+                        - type: integer
+                        - type: string
+                        description: Size specifies the capacity of the workspace
+                          PVC.
+                        pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                        x-kubernetes-int-or-string: true
+                      storageClassName:
+                        description: StorageClassName specifies the provisioner to
+                          use.
+                        type: string
+                    required:
+                    - size
+                    type: object
+                type: object
+              tolerations:
+                description: Tolerations allows the notebook to be scheduled on nodes
+                  with matching taints.
+                items:
+                  description: |-
+                    The pod this Toleration is attached to tolerates any taint that matches
+                    the triple <key,value,effect> using the matching operator <operator>.
+                  properties:
+                    effect:
+                      description: |-
+                        Effect indicates the taint effect to match. Empty means match all taint effects.
+                        When specified, allowed values are NoSchedule, PreferNoSchedule and NoExecute.
+                      type: string
+                    key:
+                      description: |-
+                        Key is the taint key that the toleration applies to. Empty means match all taint keys.
+                        If the key is empty, operator must be Exists; this combination means to match all values and all keys.
+                      type: string
+                    operator:
+                      description: |-
+                        Operator represents a key's relationship to the value.
+                        Valid operators are Exists, Equal, Lt, and Gt. Defaults to Equal.
+                        Exists is equivalent to wildcard for value, so that a pod can
+                        tolerate all taints of a particular category.
+                        Lt and Gt perform numeric comparisons (requires feature gate TaintTolerationComparisonOperators).
+                      type: string
+                    tolerationSeconds:
+                      description: |-
+                        TolerationSeconds represents the period of time the toleration (which must be
+                        of effect NoExecute, otherwise this field is ignored) tolerates the taint. By default,
+                        it is not set, which means tolerate the taint forever (do not evict). Zero and
+                        negative values will be treated as 0 (evict immediately) by the system.
+                      format: int64
+                      type: integer
+                    value:
+                      description: |-
+                        Value is the taint value the toleration matches to.
+                        If the operator is Exists, the value should be empty, otherwise just a regular string.
+                      type: string
+                  type: object
+                type: array
+            required:
+            - image
+            type: object
+          status:
+            description: status defines the observed state of NotebookLab
+            properties:
+              accessUrl:
+                description: AccessURL is the URL where the user can access the JupyterLab
+                  interface.
+                type: string
+              conditions:
+                description: Conditions represent the current state of the NotebookLab
+                  resource.
+                items:
+                  description: Condition contains details for one aspect of the current
+                    state of this API Resource.
+                  properties:
+                    lastTransitionTime:
+                      description: |-
+                        lastTransitionTime is the last time the condition transitioned from one status to another.
+                        This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                      format: date-time
+                      type: string
+                    message:
+                      description: |-
+                        message is a human readable message indicating details about the transition.
+                        This may be an empty string.
+                      maxLength: 32768
+                      type: string
+                    observedGeneration:
+                      description: |-
+                        observedGeneration represents the .metadata.generation that the condition was set based upon.
+                        For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                        with respect to the current state of the instance.
+                      format: int64
+                      minimum: 0
+                      type: integer
+                    reason:
+                      description: |-
+                        reason contains a programmatic identifier indicating the reason for the condition's last transition.
+                        Producers of specific condition types may define expected values and meanings for this field,
+                        and whether the values are considered a guaranteed API.
+                        The value should be a CamelCase string.
+                        This field may not be empty.
+                      maxLength: 1024
+                      minLength: 1
+                      pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                      type: string
+                    status:
+                      description: status of the condition, one of True, False, Unknown.
+                      enum:
+                      - "True"
+                      - "False"
+                      - Unknown
+                      type: string
+                    type:
+                      description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                      maxLength: 316
+                      pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+                x-kubernetes-list-map-keys:
+                - type
+                x-kubernetes-list-type: map
+              expiresAt:
+                description: ExpiresAt records when the notebook is scheduled for
+                  auto-termination.
+                format: date-time
+                type: string
+              gpuStatus:
+                description: GPUStatus reports the actual GPU resources allocated.
+                properties:
+                  allocated:
+                    description: Allocated indicates if a GPU was successfully attached.
+                    type: boolean
+                  coresAllocated:
+                    description: CoresAllocated indicates the actual cores given.
+                    format: int32
+                    type: integer
+                  memoryAllocated:
+                    description: MemoryAllocated indicates the actual memory given.
+                    type: string
+                  type:
+                    description: Type indicates the provisioning technology used.
+                    type: string
+                type: object
+              lastActiveTime:
+                description: LastActiveTime records the last time interaction was
+                  detected.
+                format: date-time
+                type: string
+              nodeName:
+                description: NodeName is the name of the node where the pod is currently
+                  running.
+                type: string
+              phase:
+                description: Phase is the high-level status of the NotebookLab.
+                type: string
+              podName:
+                description: PodName is the name of the underlying active Pod.
+                type: string
+              pvcName:
+                description: PVCName is the name of the provisioned workspace PVC.
+                type: string
+            type: object
+        required:
+        - spec
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

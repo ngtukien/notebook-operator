@@ -1,0 +1,51 @@
+name: Ansible Tests
+
+on:
+  push:
+    paths:
+      - 'ansible/**'
+      - '.github/workflows/test-ansible.yml'
+  pull_request:
+    paths:
+      - 'ansible/**'
+      - '.github/workflows/test-ansible.yml'
+
+permissions: {}
+
+jobs:
+  ansible-test:
+    permissions:
+      contents: read
+    name: Run on Ubuntu
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone the code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Ansible, ansible-lint and Molecule
+        run: |
+          pip install ansible ansible-lint molecule "molecule-plugins[docker]" docker
+
+      - name: Syntax check cluster playbook
+        working-directory: ansible
+        run: |
+          ansible-playbook cluster.yml \
+            -i "localhost," \
+            -e "ansible_connection=local" \
+            --syntax-check
+
+      - name: Run ansible-lint
+        working-directory: ansible
+        run: ansible-lint cluster.yml
+
+      - name: Run Molecule test (NVIDIA role)
+        working-directory: ansible
+        env:
+          DOCKER_HOST: unix:///var/run/docker.sock
+        run: |
+          molecule test -s default

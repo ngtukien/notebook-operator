@@ -1,0 +1,114 @@
+- name: Ensure curl is installed
+  ansible.builtin.apt:
+    name: curl
+    state: present
+    update_cache: true
+
+# Kiểm tra và gỡ K3s cũ nếu version không khớp v1.34
+- name: Check installed K3s version
+  ansible.builtin.command: k3s --version
+  register: k3s_version_check
+  failed_when: false
+  changed_when: false
+
+- name: Uninstall outdated K3s (if not v1.34)
+  ansible.builtin.shell: /usr/local/bin/k3s-uninstall.sh
+  args:
+    executable: /bin/bash
+  when:
+    - k3s_version_check.rc == 0
+    - "'v1.34' not in k3s_version_check.stdout"
+  failed_when: false
+  changed_when: true
+
+
+- name: Ensure K3s config directories exist
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: '0755'
+  loop:
+    - /etc/rancher/k3s
+    - /var/lib/rancher/k3s/agent/etc/containerd
+
+# K3s v1.34+ : Device Plugin mode — không cần DRA feature gates.
+# HAMi device plugin và NVIDIA MIG device plugin đều sử dụng chuẩn
+# Extended Resources qua Device Plugin API (kubelet gRPC).
+- name: Configure K3s server
+  ansible.builtin.copy:
+    dest: /etc/rancher/k3s/config.yaml
+    content: |
+      write-kubeconfig-mode: "0644"
+    mode: '0644'
+
+- name: Install K3s Server (v1.34)
+  ansible.builtin.shell: |
+    set -o pipefail
+    curl -sfL https://get.k3s.io | INSTALL_K3S_CHANNEL=v1.34 sh -s - server
+  args:
+    creates: /usr/local/bin/k3s
+    executable: /bin/bash
+
+- name: Khởi động K3s Server lần đầu
+  ansible.builtin.systemd:
+    name: k3s
+    state: started
+    enabled: true
+
+- name: Wait for K3s Master node to be ready
+  ansible.builtin.command: kubectl get nodes
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  register: nodes_result
+  until: nodes_result.rc == 0
+  retries: 10
+  delay: 10
+  changed_when: false
+
+- name: Wait for all system pods to be scheduled
+  ansible.builtin.shell: |
+    set -o pipefail
+    PENDING=$(kubectl get pods -A --field-selector=status.phase=Pending --no-headers 2>/dev/null | wc -l)
+    echo "Pending pods: $PENDING"
+    [ "$PENDING" -eq 0 ]
+  args:
+    executable: /bin/bash
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  register: pods_result
+  until: pods_result.rc == 0
+  retries: 30
+  delay: 10
+  changed_when: false
+
+- name: Sao chép kubeconfig và thay localhost/127.0.0.1 bằng IP thực
+  ansible.builtin.shell: |
+    set -o pipefail
+    mkdir -p ~/.kube
+    sed -e 's|https://127.0.0.1|https://{{ ansible_host }}|g' \
+        -e 's|https://localhost|https://{{ ansible_host }}|g' \
+        /etc/rancher/k3s/k3s.yaml > ~/.kube/config
+    chmod 600 ~/.kube/config
+
+    if [ -n "{{ ansible_env.SUDO_USER | default('') }}" ]; then
+      TARGET_HOME=$(eval echo "~{{ ansible_env.SUDO_USER }}")
+      mkdir -p "$TARGET_HOME/.kube"
+      cp ~/.kube/config "$TARGET_HOME/.kube/config"
+      chown -R {{ ansible_env.SUDO_USER }} "$TARGET_HOME/.kube"
+      chmod 600 "$TARGET_HOME/.kube/config"
+    fi
+  args:
+    executable: /bin/bash
+  changed_when: false
+
+
+- name: Tải kubeconfig về máy local
+  ansible.builtin.fetch:
+    src: ~/.kube/config
+    dest: "~/k3s.yaml"
+    flat: true
+
+- name: Get K3s token for worker nodes
+  ansible.builtin.command: cat /var/lib/rancher/k3s/server/node-token
+  register: k3s_token
+  changed_when: false

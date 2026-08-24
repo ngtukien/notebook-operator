@@ -1,0 +1,14 @@
+# CDI (Container Device Interface) cho phép containerd nhận diện GPU.
+# HAMi device plugin cũng sử dụng CDI để inject device nodes vào Pod.
+# Chỉ cần file nvidia.yaml tiêu chuẩn — không cần management spec hay UUID hacks.
+
+- name: Ensure /etc/cdi directory exists
+  ansible.builtin.file:
+    path: /etc/cdi
+    state: directory
+    mode: '0755'
+
+- name: Generate CDI spec for NVIDIA GPU
+  ansible.builtin.command: nvidia-ctk cdi generate --output=/etc/cdi/nvidia.yaml
+  args:
+    creates: /etc/cdi/nvidia.yaml

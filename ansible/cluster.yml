@@ -1,0 +1,42 @@
+---
+# ==============================================================================
+# UNIFIED PLAYBOOK: TRIỂN KHAI CỤM K3S + GPU (HAMi Device Plugin / MIG)
+# ==============================================================================
+# Mặc định: Triển khai toàn bộ cụm
+#   ansible-playbook cluster.yml
+# ==============================================================================
+
+- name: Phase 1 - Cài đặt NVIDIA Container Toolkit (Tiền đề cho GPU)
+  hosts: k3s_cluster
+  become: true
+  roles:
+    - role: nvidia
+      tags: ['nvidia', 'preflight', 'runtime']
+
+- name: Phase 2 - Khởi tạo Control Plane (K3s Master Node)
+  hosts: master
+  become: true
+  roles:
+    - role: k3s-master
+      tags: ['master', 'k3s-master', 'control-plane']
+
+- name: Phase 3 - Khởi tạo Worker Nodes và kết nạp (join) vào Cụm Master
+  hosts: worker
+  become: true
+  roles:
+    - role: k3s-worker
+      tags: ['worker', 'k3s-worker', 'join']
+
+- name: Phase 4 - Cấu hình CDI (Container Device Interface) cho GPU Node
+  hosts: k3s_cluster
+  become: true
+  roles:
+    - role: hami-node
+      tags: ['hami', 'cdi', 'node-setup']
+
+- name: Phase 5 - Triển khai HAMi Device Plugin trên Master
+  hosts: master
+  become: true
+  roles:
+    - role: hami-master
+      tags: ['hami', 'helm', 'device-plugin']

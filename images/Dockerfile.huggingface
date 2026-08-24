@@ -1,0 +1,8 @@
+FROM ghcr.io/ngtukien/notebook-operator/base-image:latest
+
+# Install HuggingFace ecosystem
+RUN pip3 install --no-cache-dir \
+    torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
+
+RUN pip3 install --no-cache-dir \
+    transformers datasets evaluate accelerate peft bitsandbytes sentencepiece trl
