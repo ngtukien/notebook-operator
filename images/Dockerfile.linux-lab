@@ -1,5 +1,5 @@
 # Stage 1: Build Runner binary
-FROM golang:1.22-alpine AS runner-builder
+FROM golang:1.27-alpine AS runner-builder
 WORKDIR /app
 COPY script/runner.go .
 RUN CGO_ENABLED=0 GOOS=linux go build -o /runner runner.go
