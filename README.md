@@ -272,5 +272,5 @@ Bộ điều khiển Operator có khả năng tinh chỉnh linh hoạt lớp lư
 Toàn bộ Pull Request đều đi qua một check bắt buộc duy nhất là **`CI / All checks passed`**, tổng hợp các job Go (verify / lint / unit test / e2e), Ansible, Terraform, Lab images và Security. CI chỉ chạy những khu vực thực sự bị thay đổi, nên job hiện trạng thái *skipped* là điều bình thường.
 
 ---
-*Phát triển bởi **Nguyễn Tự Kiên** (2026).*  
+*Phát triển bởi **NggThuHa** (2026).*  
 *Licensed under the Apache License, Version 2.0.*
